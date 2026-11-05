@@ -1,0 +1,92 @@
+@import "tailwindcss";
+@import "@fontsource-variable/inter/wght.css";
+
+@theme {
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Variable", "Segoe UI", Roboto, system-ui, sans-serif;
+
+  --color-canvas: #f5f5f7;
+  --color-surface: #ffffff;
+  --color-ink: #1d1d1f;
+  --color-ink-2: #6e6e73;
+  --color-ink-3: #a1a1a6;
+  --color-hairline: rgb(0 0 0 / 0.07);
+  --color-fill: #e8e8ed;
+  --color-fill-2: #f2f2f5;
+  --color-brand: #2fbf62;
+  --color-brand-2: #00b4a6;
+  --color-brand-ink: #1a8f47;
+  --color-protein: #ff375f;
+  --color-carbs: #ff9f0a;
+  --color-fat: #5e5ce6;
+  --color-danger: #ff3b30;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.03), 0 8px 28px rgb(0 0 0 / 0.045);
+  --shadow-float: 0 12px 40px rgb(0 0 0 / 0.14), 0 2px 10px rgb(0 0 0 / 0.06);
+
+  --ease-ios: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@layer base {
+  html {
+    background: var(--color-canvas);
+    color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    min-height: 100dvh;
+    background: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+  button {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  button:disabled {
+    cursor: default;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.35;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  input::-webkit-outer-spin-button,
+  input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+}
+
+@layer components {
+  /* Loading placeholder with a soft moving highlight. */
+  .shimmer {
+    background: linear-gradient(100deg, var(--color-fill-2) 30%, #fbfbfc 50%, var(--color-fill-2) 70%);
+    background-size: 300% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shimmer {
+    animation: none;
+  }
+}
