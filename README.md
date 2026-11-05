@@ -70,36 +70,43 @@ These rules keep each person's data private and protect the daily AI limit. Publ
 
 https://platform.openai.com/api-keys → **Create new secret key**. Put it in `.env.local` for local use and in Vercel (step 3) for the live app. Never commit it or share it.
 
-### 3. Vercel — deploy
+### 3. Vercel — deploy from GitHub
 
-```bash
-npx vercel login          # opens the browser
-npx vercel link           # create a new project, e.g. "plate"; settings come from vercel.json
-```
+1. Go to https://vercel.com/new and sign in with the GitHub account that owns the repo (`rohand575`).
+2. **Import** `rohand575/plate`. The framework, build command and output folder come from `vercel.json`, so leave them as they are.
+3. Open **Environment Variables** and paste the whole contents of `.env.local` (six `VITE_FIREBASE_*` lines and `OPENAI_API_KEY`). Vercel splits them into separate variables.
+4. Click **Deploy**. You get a URL like `https://plate-xyz.vercel.app`.
 
-Add the environment variables: Vercel dashboard → your project → **Settings → Environment Variables** → paste the whole contents of `.env.local` (the six `VITE_FIREBASE_*` lines and `OPENAI_API_KEY`) → tick **Production** and **Preview** → **Save**.
+Every push to `main` deploys automatically. If you change an environment variable later, redeploy from the Vercel dashboard (**Deployments → ⋯ → Redeploy**).
 
-```bash
-npx vercel --prod         # prints your URL, e.g. https://plate-xyz.vercel.app
-```
+### 4. Custom domain — `plate.rohan-dhanawade.de`
 
-Re-run `npx vercel --prod` after code changes. Changing environment variables also needs a redeploy.
+1. Vercel → project → **Settings → Domains → Add** → `plate.rohan-dhanawade.de`.
+2. Vercel shows a **CNAME** record. Add it where the DNS for `rohan-dhanawade.de` is managed (Google nameservers — Squarespace Domains or Google Cloud DNS):
 
-### 4. Firebase — allow sign-in from your Vercel domain
+   | Type | Host / Name | Value |
+   |---|---|---|
+   | CNAME | `plate` | the value Vercel shows, e.g. `cname.vercel-dns.com` |
 
-Firebase console → **Authentication → Settings → Authorized domains → Add domain** → `plate-xyz.vercel.app`.
+   Leave the existing records for `rohan-dhanawade.de` and `www` alone.
+3. Wait until Vercel shows the domain as **Valid Configuration** (usually minutes). HTTPS is set up automatically.
 
-### 5. Google — allow sign-in on phones
+### 5. Firebase — allow sign-in from your domain
+
+Firebase console → **Authentication → Settings → Authorized domains → Add domain** → `plate.rohan-dhanawade.de` (add the `*.vercel.app` URL too if you want to sign in there).
+
+### 6. Google — allow sign-in on phones
 
 Phones and the installed app sign in by redirecting to Google and back. Plate serves Firebase's sign-in handler from its own domain (`vercel.json` proxies `/__/auth` to `plate-4c81f.firebaseapp.com`), which keeps this working in browsers that block third-party cookies. Google has to know about that address:
 
 1. Open https://console.cloud.google.com/apis/credentials?project=plate-4c81f
 2. Edit **Web client (auto created by Google Service)**.
-3. Under **Authorized redirect URIs**, add `https://plate-xyz.vercel.app/__/auth/handler` → **Save**. (It can take a few minutes to apply.)
+3. **Authorized JavaScript origins** → add `https://plate.rohan-dhanawade.de`.
+4. **Authorized redirect URIs** → add `https://plate.rohan-dhanawade.de/__/auth/handler` → **Save**. (It can take a few minutes to apply.)
 
-### 6. Install on Android
+### 7. Install on Android
 
-Open your Vercel URL in Chrome → **⋮ → Install app** (or **Install Plate** on Plate's profile screen).
+Open https://plate.rohan-dhanawade.de in Chrome → **⋮ → Install app** (or **Install Plate** on Plate's profile screen).
 
 ## Settings
 
