@@ -1,6 +1,6 @@
 # Plate
 
-A minimal, installable calorie tracker. Sign in with Google, answer a few questions, and Plate works out your maintenance calories and a daily target. Log food by saying it, photographing it, or typing it — OpenAI estimates the calories and macros, and you confirm before anything is saved..
+A minimal, installable calorie tracker. Sign in with Google, answer a few questions, and Plate works out your maintenance calories and a daily target. Log food by saying it, photographing it, or typing it — OpenAI estimates the calories and macros, and you confirm before anything is saved.
 
 ## How it works
 
