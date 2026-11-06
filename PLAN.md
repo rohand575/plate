@@ -136,3 +136,4 @@ Checkpoint with the user after each phase.
 3. **Home-screen shortcuts** — manifest shortcuts open `/?capture=photo|voice|text`.
 4. **Edit a logged meal** — tap an entry to change amounts, meal or day (manual entries reopen the manual form).
 5. **Kitchen profile** — `profile.kitchen` (roti/katori size, oil, ghee, milk, free-text note) is sent with each analysis and added to the prompt as defaults.
+6. **Packaged food** — the prompt treats branded products separately: copy a visible nutrition label (`basis: "label"`), otherwise look the product up with OpenAI's `web_search` tool (`basis: "web"`, `source_url` kept only if it's on a site the search returned), assume the whole pack for single-serve packs. Home-cooked food never searches. `OPENAI_WEB_SEARCH=off` disables search.

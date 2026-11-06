@@ -88,6 +88,10 @@ export interface MealAnalysis {
   note: string | null;
   /** One way to make the meal lighter, e.g. "Skip the ghee on the rotis: −90 kcal". */
   tip: string | null;
+  /** Where the numbers came from: a nutrition label in the photo, a web search, or the AI's own estimate. */
+  basis: 'label' | 'web' | 'estimate';
+  /** The page the numbers came from when `basis` is "web". */
+  sourceUrl: string | null;
 }
 
 export type AnalyzeInput =

@@ -3,6 +3,7 @@
 A minimal, installable calorie tracker. Sign in with Google, answer a few questions, and Plate works out your maintenance calories and a daily target. Log food by saying it, photographing it, or typing it — OpenAI estimates the calories and macros, and you confirm before anything is saved..
 
 - **Check before you eat.** Snap a meal with the in-app camera and the review screen shows what it does to today's target ("270 kcal over"), which share of it fits (½ / ¾), and one lighter swap. Then add it, skip it, or **Decide later** — saved checks wait on Today for 12 hours and log without another AI call.
+- **Packaged food uses real label values.** Photograph the nutrition label and Plate copies it; photograph the front (or name the product) and the AI searches the web for that product's published values. The review screen says which ("Numbers from the nutrition label" / "Nutrition facts found online · site").
 - **Edit anything you logged** — tap an entry to change amounts, meal or day.
 - **Your kitchen** (Profile → Portions and cooking): roti and katori size, oil, ghee and milk. Every estimate uses it when a meal doesn't say.
 - **Home-screen shortcuts:** long-press the installed app's icon for *Snap a meal*, *Say what you ate* or *Type what you ate*.
@@ -20,6 +21,7 @@ Phone or laptop (installable web app — React + Vite)
                                         2. counts today's AI uses (40 per person per day)
                                         3. voice → text with OpenAI gpt-transcribe
                                         4. text or photo → foods, portions, kcal, macros with OpenAI gpt-6.1-terra
+                                           (branded products: reads the label, or looks the product up with web search)
                                         5. returns the estimate; the app shows it for review and saves it to Firestore
 ```
 
@@ -122,6 +124,7 @@ Open https://plate.rohan-dhanawade.de in Chrome → **⋮ → Install app** (or 
 | `OPENAI_MODEL` | server | `gpt-6.1-terra` | Food analysis. `gpt-6-luna` is ~10× cheaper but less accurate |
 | `OPENAI_TRANSCRIBE_MODEL` | server | `gpt-transcribe` | Speech to text |
 | `OPENAI_REASONING_EFFORT` | server | `low` | `none`, `low`, `medium`, `high` — higher is slower and costlier |
+| `OPENAI_WEB_SEARCH` | server | on | `off` stops the AI looking up branded products online. Each lookup adds ~4 s and ~1–3¢ ($10 per 1,000 searches plus the text read); home-cooked food never searches |
 | `AI_DAILY_LIMIT` | server | `40` | AI logs per person per day |
 | `ALLOWED_EMAILS` | server | (anyone) | Comma-separated emails; when set, only these accounts can use AI logging |
 

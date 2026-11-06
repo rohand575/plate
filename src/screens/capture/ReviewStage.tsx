@@ -1,4 +1,4 @@
-import { Clock, Info, Lightbulb, Minus, Plus, RotateCcw, Trash } from 'lucide-react';
+import { Clock, Globe, Info, Lightbulb, Minus, Plus, RotateCcw, ScanText, Trash } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { type ReactNode, useState } from 'react';
 import { useSession } from '../../app/session';
@@ -16,7 +16,7 @@ import { MEALS, mealForTime, mealLabel, sumNutrients } from '../../lib/meals';
 import { spring } from '../../lib/motion';
 import type { Plan } from '../../lib/nutrition';
 import { portionQuantity, scaleItem, stepFor, unitLabel } from '../../lib/portions';
-import type { AnalyzedItem, AnalyzeResult, DateKey, Entry, FoodItem, Meal, NewEntry, Nutrients } from '../../lib/types';
+import type { AnalyzedItem, AnalyzeResult, DateKey, Entry, FoodItem, Meal, MealAnalysis, NewEntry, Nutrients } from '../../lib/types';
 import type { CaptureMode } from './stages';
 
 /** A fresh estimate, one kept with "Decide later", or an entry that's already logged. */
@@ -91,6 +91,35 @@ function ItemRow({ row, scaled, index, onChange, onRemove }: { row: Row; scaled:
         <Stepper row={row} onChange={onChange} onRemove={onRemove} />
       </div>
     </motion.li>
+  );
+}
+
+function siteName(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return 'source';
+  }
+}
+
+/** Says when the numbers are a packaged product's published values rather than an estimate. */
+function Basis({ analysis }: { analysis: MealAnalysis }) {
+  if (analysis.basis !== 'label' && analysis.basis !== 'web') return null;
+  return (
+    <p className="mt-1 flex items-center gap-1.5 text-[13px] text-brand-ink">
+      {analysis.basis === 'label' ? <ScanText size={14} className="shrink-0" /> : <Globe size={14} className="shrink-0" />}
+      <span className="min-w-0 truncate">
+        {analysis.basis === 'label' ? 'Numbers from the nutrition label' : 'Nutrition facts found online'}
+        {analysis.basis === 'web' && analysis.sourceUrl && (
+          <>
+            {' · '}
+            <a href={analysis.sourceUrl} target="_blank" rel="noopener noreferrer" className="font-medium underline underline-offset-2">
+              {siteName(analysis.sourceUrl)}
+            </a>
+          </>
+        )}
+      </span>
+    </p>
   );
 }
 
@@ -293,6 +322,7 @@ export function ReviewStage({ result, mode, image, photoNote, date, target, budg
             onChange={(e) => setTitle(e.target.value)}
             className="mt-4 w-full rounded-md bg-transparent text-[22px] font-semibold tracking-[-0.02em] outline-none focus-visible:bg-fill-2"
           />
+          <Basis analysis={analysis} />
           <ul className="mt-1 divide-y divide-hairline">
             <AnimatePresence initial={false}>
               {rows.map((row, i) => (

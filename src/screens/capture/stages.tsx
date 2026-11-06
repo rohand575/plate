@@ -109,7 +109,7 @@ export function PhotoStage({
           value={note}
           maxLength={300}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="e.g. 2 rotis, cooked in ghee"
+          placeholder="e.g. 2 rotis in ghee, or half the pack"
           className="block w-full bg-transparent text-[17px] outline-none placeholder:text-ink-3"
         />
       </label>

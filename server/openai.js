@@ -5,14 +5,17 @@ import { requireEnv } from './http.js';
 /**
  * @typedef {{ name: string; quantity: number; unit: string; grams: number | null; kcal: number;
  *   protein: number; carbs: number; fat: number; assumption: string | null }} AnalyzedItem
+ * @typedef {'label' | 'web' | 'estimate'} Basis
  * @typedef {{ title: string; items: AnalyzedItem[]; confidence: 'high' | 'medium' | 'low'; note: string | null;
- *   tip: string | null }} MealAnalysis
+ *   tip: string | null; basis: Basis; sourceUrl: string | null }} MealAnalysis
  * @typedef {{ roti: string; katori: string; oil: string; ghee: string; milk: string; note: string }} Kitchen
  */
 
 const analysisModel = () => process.env.OPENAI_MODEL || 'gpt-6.1-terra';
 const transcribeModel = () => process.env.OPENAI_TRANSCRIBE_MODEL || 'gpt-transcribe';
 const reasoningEffort = () => process.env.OPENAI_REASONING_EFFORT ?? 'low';
+/** Lets the model look up branded products online. Set OPENAI_WEB_SEARCH=off to disable. */
+const webSearch = () => process.env.OPENAI_WEB_SEARCH !== 'off';
 
 /** @type {OpenAI | undefined} */
 let client;
@@ -60,7 +63,14 @@ How to estimate:
 
 For photos: identify every visible food, judge portions from the plate, bowl and cutlery, and use any note the person adds.
 
-When the person describes their kitchen (roti size, katori size, how much oil or ghee they use, their milk), use that as the default whenever the meal itself doesn't say otherwise. It overrides the typical values above.
+Packaged and branded food (ready meals, snacks, biscuits, drinks, chain-restaurant items) has exact published values, so don't guess them:
+- If a nutrition label is visible, copy its values. Set "basis" to "label".
+- Otherwise, if you can tell the brand and product (from the pack or the person's words), search the web for its nutrition facts per 100 g or per pack. Prefer the brand's own site, retailer listings and nutrition databases that quote the label. Set "basis" to "web" and "source_url" to the page you used. If nothing reliable turns up, estimate from similar products and set "basis" to "estimate".
+- Read the net weight from the pack when you can. Assume the whole pack for single-serve packs (ready meals, chips, chocolate bars, bottled drinks) and one labelled serving for multi-serve packs (biscuits, namkeen, cereal), unless the person says how much they had.
+- Use the unit "pack" with quantity 1 (or a natural count such as "biscuit"), with grams from the net weight, and say in "assumption" how much of the pack you assumed.
+- Never search for home-cooked, street or unbranded food; estimate it as described above with "basis" set to "estimate" and "source_url" null.
+
+When the person describes their kitchen (roti size, katori size, how much oil or ghee they use, their milk), use that as the default for home-cooked food whenever the meal itself doesn't say otherwise. It overrides the typical values above. It doesn't apply to packaged or restaurant food.
 
 "title" is a short natural name for the whole meal, at most 40 characters, e.g. "Egg bhurji with toast".
 "confidence" is high when quantities were clear, medium for typical-serving guesses, low when the photo or description is ambiguous.
@@ -126,7 +136,7 @@ const nullable = (/** @type {string} */ type) => ({ type: [type, 'null'] });
 const MEAL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'items', 'confidence', 'note', 'tip'],
+  required: ['title', 'items', 'confidence', 'note', 'tip', 'basis', 'source_url'],
   properties: {
     title: { type: 'string' },
     items: {
@@ -151,6 +161,8 @@ const MEAL_SCHEMA = {
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
     note: nullable('string'),
     tip: nullable('string'),
+    basis: { type: 'string', enum: ['label', 'web', 'estimate'] },
+    source_url: nullable('string'),
   },
 };
 
@@ -177,6 +189,11 @@ export async function analyzeMeal(input) {
     instructions: INSTRUCTIONS,
     input: [{ role: 'user', content }],
     ...(effort ? { reasoning: { effort } } : {}),
+    // The model decides when to search; the instructions limit it to branded products.
+    // An empty location stops results defaulting to the United States.
+    ...(webSearch()
+      ? { tools: [{ type: 'web_search', user_location: { type: 'approximate' } }], include: ['web_search_call.action.sources'] }
+      : {}),
     text: { format: { type: 'json_schema', name: 'meal_estimate', schema: MEAL_SCHEMA, strict: true } },
     max_output_tokens: 8000,
     store: false,
@@ -185,15 +202,48 @@ export async function analyzeMeal(input) {
   if (response.status !== 'completed' || !response.output_text) {
     throw new Error(`OpenAI returned ${response.status}: ${JSON.stringify(response.incomplete_details)}`);
   }
-  return sanitize(JSON.parse(response.output_text));
+  return sanitize(JSON.parse(response.output_text), searchedUrls(response));
+}
+
+/**
+ * Every URL the model's web searches returned, or null when it didn't search.
+ * @param {import('openai/resources/responses/responses').Response} response
+ * @returns {string[] | null}
+ */
+function searchedUrls(response) {
+  const calls = response.output.filter((item) => item.type === 'web_search_call');
+  if (calls.length === 0) return null;
+  return calls.flatMap((call) => (call.action?.type === 'search' ? (call.action.sources ?? []).map((s) => s.url) : []));
+}
+
+const hostOf = (/** @type {string} */ url) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * The model's source link, kept only if it's a web page on a site its searches actually returned.
+ * @param {unknown} raw
+ * @param {string[]} searched
+ */
+function sourceUrl(raw, searched) {
+  if (typeof raw !== 'string' || !/^https?:\/\//i.test(raw.trim())) return null;
+  const url = raw.trim();
+  const host = hostOf(url);
+  if (!host) return null;
+  return searched.length === 0 || searched.some((s) => hostOf(s) === host) ? url.slice(0, 500) : null;
 }
 
 /**
  * Clamps and tidies the model's output so the app never stores nonsense values.
  * @param {any} raw
+ * @param {string[] | null} [searched] URLs returned by the model's web searches; null when it didn't search
  * @returns {MealAnalysis}
  */
-export function sanitize(raw) {
+export function sanitize(raw, searched = null) {
   const num = (/** @type {unknown} */ v, /** @type {number} */ max) => {
     const n = Number(v);
     return Number.isFinite(n) ? Math.min(max, Math.max(0, n)) : 0;
@@ -219,5 +269,18 @@ export function sanitize(raw) {
     confidence: ['high', 'medium', 'low'].includes(raw?.confidence) ? raw.confidence : 'medium',
     note: str(raw?.note, 240) || null,
     tip: (items.length > 0 && str(raw?.tip, 140)) || null,
+    ...basisOf(raw, searched),
   };
+}
+
+/**
+ * Where the numbers came from. "web" only counts when a search actually ran.
+ * @param {any} raw
+ * @param {string[] | null} searched
+ * @returns {{ basis: Basis; sourceUrl: string | null }}
+ */
+function basisOf(raw, searched) {
+  if (raw?.basis === 'label') return { basis: 'label', sourceUrl: null };
+  if (raw?.basis === 'web' && searched) return { basis: 'web', sourceUrl: sourceUrl(raw?.source_url, searched) };
+  return { basis: 'estimate', sourceUrl: null };
 }

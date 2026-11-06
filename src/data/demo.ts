@@ -41,6 +41,8 @@ const SAMPLE_SPOKEN: MealAnalysis = {
   confidence: 'high',
   note: DEMO_NOTE,
   tip: 'Use 1 tbsp of oil instead of 2: −120 kcal',
+  basis: 'estimate',
+  sourceUrl: null,
   items: [
     { name: 'Egg bhurji', quantity: 2, unit: 'egg', grams: 120, kcal: 175, protein: 13, carbs: 4, fat: 12, assumption: 'Includes onion and tomato.' },
     { name: 'Sunflower oil', quantity: 2, unit: 'tbsp', grams: 27, kcal: 240, protein: 0, carbs: 0, fat: 27, assumption: null },
@@ -53,6 +55,8 @@ const SAMPLE_PHOTO: MealAnalysis = {
   confidence: 'medium',
   note: DEMO_NOTE,
   tip: 'Have one roti instead of two: −105 kcal',
+  basis: 'estimate',
+  sourceUrl: null,
   items: [
     { name: 'Toor dal', quantity: 1, unit: 'katori', grams: 150, kcal: 165, protein: 9, carbs: 22, fat: 5, assumption: 'Assumed 1 tsp ghee in the tadka.' },
     { name: 'Steamed rice', quantity: 1, unit: 'cup', grams: 150, kcal: 195, protein: 4, carbs: 43, fat: 0, assumption: null },

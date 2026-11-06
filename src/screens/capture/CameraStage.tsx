@@ -173,7 +173,7 @@ export function CameraStage({
           <span />
         )}
       </div>
-      <p className="mt-3 text-center text-[14px] text-ink-2">Fit the whole plate in the frame.</p>
+      <p className="mt-3 text-center text-[14px] text-ink-2">Fit the whole plate in the frame — or, for packaged food, its nutrition label.</p>
     </div>
   );
 }

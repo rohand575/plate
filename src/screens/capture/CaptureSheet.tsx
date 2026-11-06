@@ -55,6 +55,8 @@ function entryResult(entry: Entry): AnalyzeResult {
       confidence: 'high',
       note: null,
       tip: null,
+      basis: 'estimate',
+      sourceUrl: null,
       items: entry.items.map((item) => ({ ...item, quantity: item.quantity ?? 1, unit: item.unit ?? 'serving', assumption: null })),
     },
   };
