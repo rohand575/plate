@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Download, LogOut, Pencil, Scale } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CookingPot, Download, LogOut, Pencil, Scale } from 'lucide-react';
 import { AnimatePresence } from 'motion/react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { useSession } from '../../app/session';
@@ -10,9 +10,11 @@ import { isDemo } from '../../data';
 import { useInstallPrompt } from '../../hooks/useInstallPrompt';
 import { todayKey } from '../../lib/dates';
 import { cx, fmt1, fmtInt } from '../../lib/format';
+import { kitchenSummary } from '../../lib/kitchen';
 import { PACE_OPTIONS, SEX_OPTIONS, computePlan } from '../../lib/nutrition';
 import type { Profile } from '../../lib/types';
 import { Onboarding } from '../onboarding/Onboarding';
+import { KitchenSheet } from './KitchenSheet';
 import { LogWeightSheet } from './LogWeightSheet';
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
@@ -58,10 +60,13 @@ export function ProfileScreen({ onClose }: { onClose: () => void }) {
   const install = useInstallPrompt();
   const [editing, setEditing] = useState(false);
   const [weightOpen, setWeightOpen] = useState(false);
+  const [kitchenOpen, setKitchenOpen] = useState(false);
   const plan = useMemo(() => computePlan(profile), [profile]);
   const pace = PACE_OPTIONS.find((o) => o.value === profile.pace)!;
 
-  function saveEdit(next: Profile) {
+  function saveEdit(edited: Profile) {
+    // The plan editor doesn't know about the kitchen settings; keep them.
+    const next = profile.kitchen ? { ...edited, kitchen: profile.kitchen } : edited;
     backend.data
       .saveProfile(user, next, { today: todayKey(), logWeight: next.weightKg !== profile.weightKg })
       .catch(() => toast({ message: 'Couldn’t save your plan. Try again.' }));
@@ -109,6 +114,15 @@ export function ProfileScreen({ onClose }: { onClose: () => void }) {
           <ActionRow label="Log today’s weight" icon={<Scale size={15} />} onClick={() => setWeightOpen(true)} />
         </Group>
 
+        <Group title="Kitchen">
+          <ActionRow label="Portions and cooking" icon={<CookingPot size={15} />} onClick={() => setKitchenOpen(true)} />
+        </Group>
+        <p className="mt-2 px-4 text-[13px] leading-snug text-ink-2">
+          {profile.kitchen
+            ? kitchenSummary(profile.kitchen)
+            : 'Tell Plate your roti and katori sizes and how much oil you use, for closer estimates.'}
+        </p>
+
         <Group title="App">
           {install.available && <ActionRow label="Install Plate" icon={<Download size={15} />} onClick={install.install} />}
           <ActionRow label="Sign out" icon={<LogOut size={15} />} danger onClick={() => void backend.auth.signOut()} />
@@ -121,6 +135,7 @@ export function ProfileScreen({ onClose }: { onClose: () => void }) {
       </div>
 
       <LogWeightSheet open={weightOpen} onClose={() => setWeightOpen(false)} />
+      <KitchenSheet open={kitchenOpen} onClose={() => setKitchenOpen(false)} />
       <AnimatePresence>
         {editing && (
           <Overlay key="edit" from="bottom" onClose={() => setEditing(false)}>

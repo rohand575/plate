@@ -9,6 +9,21 @@ export type Pace = 'maintain' | 'slow' | 'standard' | 'fast';
 export type Meal = 'breakfast' | 'lunch' | 'snack' | 'dinner';
 export type EntrySource = 'manual' | 'text' | 'voice' | 'photo';
 
+export type Size = 'small' | 'medium' | 'large';
+export type OilUse = 'light' | 'medium' | 'heavy';
+export type GheeUse = 'rarely' | 'sometimes' | 'usually';
+export type Milk = 'full' | 'toned' | 'skimmed';
+
+/** How this person's household cooks; the AI uses it when a log doesn't say. */
+export interface Kitchen {
+  roti: Size;
+  katori: Size;
+  oil: OilUse;
+  ghee: GheeUse;
+  milk: Milk;
+  note: string;
+}
+
 export interface Profile {
   birthDate: DateKey;
   sex: Sex;
@@ -19,6 +34,7 @@ export interface Profile {
   workouts: Workouts;
   walking: Walking;
   pace: Pace;
+  kitchen?: Kitchen;
 }
 
 export interface AppUser {
@@ -70,6 +86,8 @@ export interface MealAnalysis {
   items: AnalyzedItem[];
   confidence: 'high' | 'medium' | 'low';
   note: string | null;
+  /** One way to make the meal lighter, e.g. "Skip the ghee on the rotis: −90 kcal". */
+  tip: string | null;
 }
 
 export type AnalyzeInput =

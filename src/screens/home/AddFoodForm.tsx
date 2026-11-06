@@ -2,11 +2,12 @@ import { type FormEvent, type InputHTMLAttributes, useId, useState } from 'react
 import { useSession } from '../../app/session';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/ui/Button';
-import { SegmentedControl } from '../../components/ui/controls';
+import { DayField, SegmentedControl } from '../../components/ui/controls';
+import { isLoggableDay } from '../../lib/dates';
 import { parseNumber } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import { MEALS, mealForTime, mealLabel } from '../../lib/meals';
-import type { DateKey, Meal } from '../../lib/types';
+import type { DateKey, Entry, Meal, NewEntry } from '../../lib/types';
 
 function Field({ label, unit, ...input }: { label: string; unit?: string } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
@@ -30,17 +31,29 @@ function Field({ label, unit, ...input }: { label: string; unit?: string } & Inp
 }
 
 const grams = (raw: string) => Math.max(0, Math.round(parseNumber(raw) ?? 0));
+const initial = (n: number | undefined) => (n ? String(n) : '');
 
-/** Manual entry for when the calories are already known. */
-export function AddFoodForm({ date, onDone }: { date: DateKey; onDone: () => void }) {
+/** Manual entry for when the calories are already known; also edits a manual entry. */
+export function AddFoodForm({
+  date,
+  entry,
+  onDone,
+  onDelete,
+}: {
+  date: DateKey;
+  entry?: Entry;
+  onDone: () => void;
+  onDelete?: (entry: Entry) => void;
+}) {
   const { backend, user } = useSession();
   const toast = useToast();
-  const [name, setName] = useState('');
-  const [kcal, setKcal] = useState('');
-  const [protein, setProtein] = useState('');
-  const [carbs, setCarbs] = useState('');
-  const [fat, setFat] = useState('');
-  const [meal, setMeal] = useState<Meal>(() => mealForTime());
+  const [name, setName] = useState(entry?.title ?? '');
+  const [kcal, setKcal] = useState(initial(entry?.totals.kcal));
+  const [protein, setProtein] = useState(initial(entry?.totals.protein));
+  const [carbs, setCarbs] = useState(initial(entry?.totals.carbs));
+  const [fat, setFat] = useState(initial(entry?.totals.fat));
+  const [meal, setMeal] = useState<Meal>(() => entry?.meal ?? mealForTime());
+  const [day, setDay] = useState<DateKey>(entry?.date ?? date);
 
   const kcalValue = parseNumber(kcal);
   const valid = name.trim() !== '' && kcalValue != null && kcalValue > 0 && kcalValue < 10_000;
@@ -51,20 +64,21 @@ export function AddFoodForm({ date, onDone }: { date: DateKey; onDone: () => voi
     if (!valid) return;
     const title = name.trim();
     const totals = { kcal: Math.round(kcalValue), protein: grams(protein), carbs: grams(carbs), fat: grams(fat) };
-    backend.data
-      .addEntry(user.uid, {
-        date,
-        meal,
-        title,
-        source: 'manual',
-        items: [{ name: title, quantity: null, unit: null, grams: null, ...totals }],
-        totals,
-        transcript: null,
-        loggedAt: Date.now(),
-      })
-      .catch(() => toast({ message: 'Couldn’t save that. Check your connection.' }));
+    const next: NewEntry = {
+      date: entry ? (isLoggableDay(day) ? day : entry.date) : date,
+      meal,
+      title,
+      source: 'manual',
+      items: [{ name: title, quantity: null, unit: null, grams: null, ...totals }],
+      totals,
+      transcript: null,
+      loggedAt: entry?.loggedAt ?? Date.now(),
+    };
+    const failed = () => toast({ message: 'Couldn’t save that. Check your connection.' });
+    if (entry) backend.data.updateEntry(user.uid, entry.id, next).catch(failed);
+    else backend.data.addEntry(user.uid, next).catch(failed);
     haptic([8, 40, 8]);
-    toast({ message: `Added to ${mealLabel(meal)}` });
+    toast({ message: entry ? `Updated ${title}` : `Added to ${mealLabel(meal)}` });
     onDone();
   }
 
@@ -80,10 +94,16 @@ export function AddFoodForm({ date, onDone }: { date: DateKey; onDone: () => voi
       <div className="pt-2">
         <SegmentedControl label="Meal" options={MEALS} value={meal} onChange={setMeal} />
       </div>
+      {entry && <DayField value={day} onChange={setDay} />}
       <div className="pt-3">
         <Button type="submit" disabled={!valid}>
-          Add
+          {entry ? 'Save changes' : 'Add'}
         </Button>
+        {entry && onDelete && (
+          <Button variant="danger" className="mt-1" onClick={() => onDelete(entry)}>
+            Delete
+          </Button>
+        )}
       </div>
     </form>
   );

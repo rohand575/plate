@@ -4,7 +4,7 @@ A premium, minimal, light-themed calorie tracker. Log food by voice or photo; AI
 
 Status: **approved** (revision 3). OpenAI for all AI. Firebase stays on the free **Spark** plan; the AI endpoint runs as a **Vercel Function** and the app is hosted on Vercel.
 
-Progress: Phase 1 ✅ built · Phase 2 ✅ built (voice, photo, text logging) · Phase 3 pending.
+Progress: Phase 1 ✅ built · Phase 2 ✅ built (voice, photo, text logging) · Extras ✅ built (see §13) · Phase 3 pending.
 
 ---
 
@@ -128,3 +128,11 @@ Checkpoint with the user after each phase.
 - Create a Firebase project (Spark), enable Google sign-in, create Firestore, publish `firestore.rules`.
 - OpenAI API key.
 - Run `firebase login` once the CLI is installed.
+
+## 13. Extras (approved 2026-11-06)
+
+1. **In-app camera** — live viewfinder (back camera, torch where supported) with a gallery button; falls back to the gallery when the camera is blocked or missing. Works with laptop webcams.
+2. **Should I eat this?** — the review screen shows the meal's effect on the day's target, ½ / ¾ / all portion buttons (rescaled on the device), which share fits, and one lighter swap from the AI (`tip`, same call). Actions: add, skip, or decide later (kept in localStorage for 12 h, logged later without another AI call).
+3. **Home-screen shortcuts** — manifest shortcuts open `/?capture=photo|voice|text`.
+4. **Edit a logged meal** — tap an entry to change amounts, meal or day (manual entries reopen the manual form).
+5. **Kitchen profile** — `profile.kitchen` (roti/katori size, oil, ghee, milk, free-text note) is sent with each analysis and added to the prompt as defaults.

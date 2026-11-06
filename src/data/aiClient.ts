@@ -1,4 +1,4 @@
-import type { AnalyzeInput, AnalyzeResult } from '../lib/types';
+import type { AnalyzeInput, AnalyzeResult, Kitchen } from '../lib/types';
 import { AiError } from './backend';
 
 function toBase64(blob: Blob): Promise<string> {
@@ -22,7 +22,11 @@ async function requestBody(input: AnalyzeInput) {
 }
 
 /** Calls POST /api/analyze (a Vercel Function in production, the Vite dev server locally). */
-export async function analyzeWithApi(input: AnalyzeInput, getIdToken: () => Promise<string | undefined>): Promise<AnalyzeResult> {
+export async function analyzeWithApi(
+  input: AnalyzeInput,
+  kitchen: Kitchen | null,
+  getIdToken: () => Promise<string | undefined>,
+): Promise<AnalyzeResult> {
   const token = await getIdToken();
   if (!token) throw new AiError('Please sign in again.');
 
@@ -31,7 +35,7 @@ export async function analyzeWithApi(input: AnalyzeInput, getIdToken: () => Prom
     response = await fetch('/api/analyze', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(await requestBody(input)),
+      body: JSON.stringify({ ...(await requestBody(input)), kitchen }),
     });
   } catch {
     throw new AiError(navigator.onLine ? 'Couldn’t reach Plate’s server. Please try again.' : 'You’re offline. Connect to the internet and try again.');

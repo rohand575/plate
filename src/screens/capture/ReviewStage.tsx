@@ -1,19 +1,32 @@
-import { Info, Minus, Plus, RotateCcw, Trash } from 'lucide-react';
+import { Clock, Info, Lightbulb, Minus, Plus, RotateCcw, Trash } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useSession } from '../../app/session';
 import { useToast } from '../../components/Toast';
 import { Button } from '../../components/ui/Button';
-import { SegmentedControl } from '../../components/ui/controls';
+import { DayField, SegmentedControl } from '../../components/ui/controls';
 import { NumberRoll } from '../../components/ui/NumberRoll';
-import { fmt1, fmtInt } from '../../lib/format';
+import { SHARES, type Share, fittingShare, mealImpact } from '../../lib/budget';
+import { isLoggableDay } from '../../lib/dates';
+import { cx, fmt1, fmtInt } from '../../lib/format';
 import { haptic } from '../../lib/haptics';
 import type { PreparedImage } from '../../lib/image';
+import { removeCheck, saveCheck } from '../../lib/later';
 import { MEALS, mealForTime, mealLabel, sumNutrients } from '../../lib/meals';
 import { spring } from '../../lib/motion';
-import { scaleItem, stepFor, unitLabel } from '../../lib/portions';
-import type { AnalyzedItem, AnalyzeResult, DateKey, FoodItem, Meal, Nutrients } from '../../lib/types';
+import type { Plan } from '../../lib/nutrition';
+import { portionQuantity, scaleItem, stepFor, unitLabel } from '../../lib/portions';
+import type { AnalyzedItem, AnalyzeResult, DateKey, Entry, FoodItem, Meal, NewEntry, Nutrients } from '../../lib/types';
 import type { CaptureMode } from './stages';
+
+/** A fresh estimate, one kept with "Decide later", or an entry that's already logged. */
+export type ReviewTarget = { kind: 'new' } | { kind: 'saved'; id: string } | { kind: 'edit'; entry: Entry };
+
+/** What's already logged on the day this meal would go to, and that day's targets. */
+export interface DayBudget {
+  eaten: Nutrients;
+  plan: Plan;
+}
 
 interface Row {
   key: string;
@@ -22,6 +35,8 @@ interface Row {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+const SHARE_OPTIONS = SHARES.map((s) => ({ value: String(s.value), label: s.label }));
+const SHARE_HINT: Record<Exclude<Share, 1>, string> = { 0.75: '¾', 0.5: 'half' };
 
 function Stepper({ row, onChange, onRemove }: { row: Row; onChange: (q: number) => void; onRemove: () => void }) {
   const step = stepFor(row.item);
@@ -79,7 +94,47 @@ function ItemRow({ row, scaled, index, onChange, onRemove }: { row: Row; scaled:
   );
 }
 
-function Totals({ totals }: { totals: Nutrients }) {
+function Segment({ width, className }: { width: number; className: string }) {
+  return <motion.div initial={false} animate={{ width: `${width * 100}%` }} transition={spring} className={cx('h-full shrink-0', className)} />;
+}
+
+/** "Should I eat this?": where the day ends up if this meal is eaten. */
+function Impact({ budget, totals, fit, onShare }: { budget: DayBudget; totals: Nutrients; fit: Share | 'none' | null; onShare: (s: Share) => void }) {
+  const { eaten, plan } = budget;
+  const { after, bar } = mealImpact(eaten.kcal, totals.kcal, plan.calories);
+  const over = after < 0;
+  const proteinShare = plan.protein > 0 ? Math.round((totals.protein / plan.protein) * 100) : 0;
+
+  return (
+    <div className="mt-4 border-t border-white/12 pt-3.5">
+      <p className={cx('text-[16px] font-semibold tracking-[-0.01em]', over && 'text-[#ffb340]')}>
+        {over ? `${fmtInt(-after)} kcal over your target` : `${fmtInt(after)} kcal left after this`}
+      </p>
+      <div className="relative mt-2.5">
+        <div className="flex h-2 overflow-hidden rounded-full bg-white/12">
+          <Segment width={bar.eaten} className="bg-white/40" />
+          <Segment width={bar.within} className="bg-brand" />
+          <Segment width={bar.over} className="bg-[#ff9f0a]" />
+        </div>
+        {bar.target < 1 && (
+          <span className="absolute -top-[3px] h-3.5 w-[2px] rounded-full bg-white" style={{ left: `calc(${bar.target * 100}% - 1px)` }} />
+        )}
+      </div>
+      <p className="mt-2 text-[13px] text-white/60">
+        {fmtInt(eaten.kcal)} of {fmtInt(plan.calories)} kcal eaten so far
+        {proteinShare > 0 && ` · ${proteinShare}% of your daily protein`}
+      </p>
+      {fit === 'none' && <p className="mt-1.5 text-[13px] font-medium text-[#ffb340]">Even half of it goes over your target.</p>}
+      {fit != null && fit !== 'none' && fit !== 1 && (
+        <button type="button" onClick={() => onShare(fit)} className="mt-1.5 text-left text-[13px] font-medium text-[#ffb340]">
+          Having {SHARE_HINT[fit]} of it keeps you within your target. <span className="underline underline-offset-2">Use {SHARE_HINT[fit]}</span>
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Totals({ totals, children }: { totals: Nutrients; children?: ReactNode }) {
   const macro = (label: string, value: number, color: string) => (
     <p className="flex items-center justify-end gap-1.5">
       <span className="size-1.5 rounded-full" style={{ background: color }} />
@@ -88,19 +143,22 @@ function Totals({ totals }: { totals: Nutrients }) {
     </p>
   );
   return (
-    <div className="mt-4 flex items-center justify-between rounded-[20px] bg-ink px-5 py-4 text-white">
-      <div>
-        <p className="text-[13px] font-medium text-white/60">Total</p>
-        <p className="mt-1 flex items-baseline gap-1.5">
-          <NumberRoll value={totals.kcal} className="text-[34px] font-bold tracking-[-0.03em]" />
-          <span className="text-[15px] text-white/70">kcal</span>
-        </p>
+    <div className="mt-4 rounded-[20px] bg-ink px-5 py-4 text-white">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-[13px] font-medium text-white/60">Total</p>
+          <p className="mt-1 flex items-baseline gap-1.5">
+            <NumberRoll value={totals.kcal} className="text-[34px] font-bold tracking-[-0.03em]" />
+            <span className="text-[15px] text-white/70">kcal</span>
+          </p>
+        </div>
+        <div className="space-y-1 text-[13px] tabular-nums">
+          {macro('Protein', totals.protein, 'var(--color-protein)')}
+          {macro('Carbs', totals.carbs, 'var(--color-carbs)')}
+          {macro('Fat', totals.fat, '#8c8af0')}
+        </div>
       </div>
-      <div className="space-y-1 text-[13px] tabular-nums">
-        {macro('Protein', totals.protein, 'var(--color-protein)')}
-        {macro('Carbs', totals.carbs, 'var(--color-carbs)')}
-        {macro('Fat', totals.fat, '#8c8af0')}
-      </div>
+      {children}
     </div>
   );
 }
@@ -111,18 +169,23 @@ interface ReviewProps {
   image: PreparedImage | null;
   photoNote: string | null;
   date: DateKey;
-  onSaved: () => void;
+  target: ReviewTarget;
+  budget: DayBudget;
+  onDone: () => void;
   onReanalyze: (text: string) => void;
   onRetry: () => void;
+  onDelete: (entry: Entry) => void;
 }
 
-export function ReviewStage({ result, mode, image, photoNote, date, onSaved, onReanalyze, onRetry }: ReviewProps) {
+export function ReviewStage({ result, mode, image, photoNote, date, target, budget, onDone, onReanalyze, onRetry, onDelete }: ReviewProps) {
   const { backend, user } = useSession();
   const toast = useToast();
   const { analysis, usage } = result;
+  const editing = target.kind === 'edit' ? target.entry : null;
   const [title, setTitle] = useState(analysis.title);
   const [rows, setRows] = useState<Row[]>(() => analysis.items.map((item, i) => ({ key: `${i}-${item.name}`, item, quantity: item.quantity })));
-  const [meal, setMeal] = useState<Meal>(() => mealForTime());
+  const [meal, setMeal] = useState<Meal>(() => editing?.meal ?? mealForTime());
+  const [day, setDay] = useState<DateKey>(editing?.date ?? date);
   const [draft, setDraft] = useState(result.transcript ?? '');
 
   const scaled = rows.map((r) => scaleItem(r.item, r.quantity));
@@ -130,22 +193,59 @@ export function ReviewStage({ result, mode, image, photoNote, date, onSaved, onR
   const edited = result.transcript != null && draft.trim() !== '' && draft.trim() !== result.transcript.trim();
   const remaining = usage ? usage.limit - usage.used : null;
 
+  const kcalAt = (share: Share) => rows.reduce((sum, r) => sum + scaleItem(r.item, portionQuantity(r.item, share)).kcal, 0);
+  const share = SHARES.find((s) => rows.every((r) => r.quantity === portionQuantity(r.item, s.value)))?.value ?? null;
+  const left = budget.plan.calories - budget.eaten.kcal;
+  const fit = totals.kcal > left ? fittingShare(left, kcalAt) : null;
+  const applyShare = (s: Share) => setRows((rs) => rs.map((r) => ({ ...r, quantity: portionQuantity(r.item, s) })));
+
+  const finalTitle = title.trim() || analysis.title;
+  const notes = mode === 'photo' ? photoNote : draft.trim() || null;
+
   function save() {
-    backend.data
-      .addEntry(user.uid, {
-        date,
-        meal,
-        title: title.trim() || analysis.title,
-        source: mode,
-        items: scaled,
-        totals,
-        transcript: mode === 'photo' ? photoNote : draft.trim() || null,
-        loggedAt: Date.now(),
-      })
-      .catch(() => toast({ message: 'Couldn’t save that. Check your connection.' }));
-    haptic([10, 50, 10]);
-    toast({ message: `Added ${fmtInt(totals.kcal)} kcal to ${mealLabel(meal)}` });
-    onSaved();
+    const entry: NewEntry = {
+      date: editing ? (isLoggableDay(day) ? day : editing.date) : date,
+      meal,
+      title: finalTitle,
+      source: mode,
+      items: scaled,
+      totals,
+      transcript: notes,
+      loggedAt: editing?.loggedAt ?? Date.now(),
+    };
+    if (editing) {
+      backend.data.updateEntry(user.uid, editing.id, entry).catch(() => toast({ message: 'Couldn’t save your changes. Try again.' }));
+      haptic([8, 40, 8]);
+      toast({ message: `Updated ${finalTitle}` });
+    } else {
+      backend.data.addEntry(user.uid, entry).catch(() => toast({ message: 'Couldn’t save that. Check your connection.' }));
+      if (target.kind === 'saved') removeCheck(user.uid, target.id);
+      haptic([10, 50, 10]);
+      toast({ message: `Added ${fmtInt(totals.kcal)} kcal to ${mealLabel(meal)}` });
+    }
+    onDone();
+  }
+
+  function later() {
+    saveCheck(user.uid, {
+      id: target.kind === 'saved' ? target.id : crypto.randomUUID(),
+      source: mode,
+      transcript: notes,
+      analysis: {
+        ...analysis,
+        title: finalTitle,
+        items: rows.map((r) => ({ ...r.item, ...scaleItem(r.item, r.quantity), quantity: r.quantity, unit: r.item.unit })),
+      },
+    });
+    haptic(10);
+    toast({ message: 'Saved for later — log it from Today when you’ve eaten' });
+    onDone();
+  }
+
+  function skip() {
+    if (target.kind === 'saved') removeCheck(user.uid, target.id);
+    toast({ message: `Skipped · ${fmtInt(totals.kcal)} kcal not logged` });
+    onDone();
   }
 
   return (
@@ -208,7 +308,33 @@ export function ReviewStage({ result, mode, image, photoNote, date, onSaved, onR
             </AnimatePresence>
           </ul>
 
-          <Totals totals={totals} />
+          {rows.length > 0 && (
+            <div className="mt-2 flex items-center justify-between gap-4">
+              <p className="text-[15px] font-medium text-ink-2">How much?</p>
+              <div className="w-[180px]">
+                <SegmentedControl
+                  label="Portion"
+                  options={SHARE_OPTIONS}
+                  value={share == null ? null : String(share)}
+                  onChange={(v) => applyShare(Number(v) as Share)}
+                />
+              </div>
+            </div>
+          )}
+
+          <Totals totals={totals}>
+            {!editing && rows.length > 0 && <Impact budget={budget} totals={totals} fit={fit} onShare={applyShare} />}
+          </Totals>
+          {/* The tip is about the estimate as given; once amounts change it may no longer apply. */}
+          {analysis.tip && share === 1 && rows.length === analysis.items.length && (
+            <p className="mt-3 flex items-start gap-2 rounded-[16px] bg-brand/10 px-4 py-3 text-[14px] leading-snug text-brand-ink">
+              <Lightbulb size={16} className="mt-[2px] shrink-0" />
+              <span>
+                <span className="font-semibold">Lighter: </span>
+                {analysis.tip}
+              </span>
+            </p>
+          )}
           {analysis.confidence === 'low' && (
             <p className="mt-3 px-1 text-[13px] leading-snug text-ink-2">This one’s a rough guess — adjust the amounts if you know them.</p>
           )}
@@ -217,15 +343,43 @@ export function ReviewStage({ result, mode, image, photoNote, date, onSaved, onR
           <div className="mt-5">
             <SegmentedControl label="Meal" options={MEALS} value={meal} onChange={setMeal} />
           </div>
-          <Button className="mt-4" onClick={save} disabled={rows.length === 0}>
-            Add to {mealLabel(meal)}
-          </Button>
+          {editing ? (
+            <>
+              <div className="mt-3">
+                <DayField value={day} onChange={setDay} />
+              </div>
+              <Button className="mt-4" onClick={save} disabled={rows.length === 0}>
+                Save changes
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button className="mt-4" onClick={save} disabled={rows.length === 0}>
+                Add to {mealLabel(meal)}
+              </Button>
+              <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+                <Button variant="secondary" size="md" className="w-full" onClick={later} disabled={rows.length === 0}>
+                  <Clock size={16} />
+                  Decide later
+                </Button>
+                <Button variant="secondary" size="md" className="w-full" onClick={skip}>
+                  Skip it
+                </Button>
+              </div>
+            </>
+          )}
         </>
       )}
 
-      <button type="button" onClick={onRetry} className="mt-1 w-full py-2.5 text-[15px] font-medium text-ink-2">
-        {mode === 'voice' ? 'Record again' : mode === 'photo' ? 'Take another photo' : 'Start over'}
-      </button>
+      {editing ? (
+        <Button variant="danger" className="mt-1" onClick={() => onDelete(editing)}>
+          Delete
+        </Button>
+      ) : (
+        <button type="button" onClick={onRetry} className="mt-1 w-full py-2.5 text-[15px] font-medium text-ink-2">
+          {mode === 'voice' ? 'Record again' : mode === 'photo' ? 'Take another photo' : 'Start over'}
+        </button>
+      )}
       {remaining != null && remaining <= 5 && (
         <p className="text-center text-[12px] text-ink-3">
           {remaining} AI {remaining === 1 ? 'log' : 'logs'} left today

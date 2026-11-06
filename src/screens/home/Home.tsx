@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from '../../app/session';
 import { useToast } from '../../components/Toast';
 import { Avatar } from '../../components/ui/brand';
@@ -8,14 +8,17 @@ import { useIsDesktop } from '../../hooks/useMediaQuery';
 import { useToday } from '../../hooks/useToday';
 import { dayTitle, fromKey, longDate, weekDays } from '../../lib/dates';
 import { haptic } from '../../lib/haptics';
+import { removeCheck, saveCheck, useSavedChecks } from '../../lib/later';
 import { entriesTotal } from '../../lib/meals';
 import { iosEase } from '../../lib/motion';
 import { computePlan } from '../../lib/nutrition';
+import type { SavedCheck } from '../../lib/later';
 import type { DateKey, Entry } from '../../lib/types';
 import { CaptureSheet, type CaptureRequest } from '../capture/CaptureSheet';
 import { ProfileScreen } from '../profile/ProfileScreen';
 import { CaptureCard, CaptureDock, type CaptureActions } from './Capture';
 import { MealList } from './MealList';
+import { SavedChecks } from './SavedChecks';
 import { SummaryCard } from './SummaryCard';
 import { WeekStrip } from './WeekStrip';
 
@@ -111,8 +114,18 @@ export function Home() {
   const [profileOpen, setProfileOpen] = useState(false);
   const [capture, setCapture] = useState<CaptureRequest | null>(null);
   const captureId = useRef(0);
-  const photoInput = useRef<HTMLInputElement>(null);
-  const takePhoto = useCallback(() => photoInput.current?.click(), []);
+  const saved = useSavedChecks(user.uid);
+
+  // Home-screen shortcuts open Plate at /?capture=photo|voice|text.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get('capture');
+    if (mode !== 'photo' && mode !== 'voice' && mode !== 'text') return;
+    params.delete('capture');
+    const query = params.toString();
+    history.replaceState(history.state, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
+    setCapture({ id: ++captureId.current, mode });
+  }, []);
 
   // If the app stays open past midnight, follow "today" forward.
   const lastToday = useRef(today);
@@ -142,9 +155,14 @@ export function Home() {
     });
   }
 
+  function dismiss(check: SavedCheck) {
+    removeCheck(user.uid, check.id);
+    toast({ message: `Dismissed ${check.analysis.title}`, action: { label: 'Undo', onClick: () => saveCheck(user.uid, check) } });
+  }
+
   const actions: CaptureActions = {
     onSpeak: () => setCapture({ id: ++captureId.current, mode: 'voice' }),
-    onPhoto: takePhoto,
+    onPhoto: () => setCapture({ id: ++captureId.current, mode: 'photo' }),
     onType: () => setCapture({ id: ++captureId.current, mode: 'text' }),
   };
 
@@ -165,25 +183,31 @@ export function Home() {
           </div>
           <div className="space-y-6 pt-2 lg:pt-0">
             {desktop && weekStrip}
-            <MealList entries={dayEntries} isToday={selected === today} onDelete={remove} />
+            {selected === today && (
+              <SavedChecks
+                checks={saved}
+                onOpen={(check) => setCapture({ id: ++captureId.current, mode: 'saved', check })}
+                onDismiss={dismiss}
+              />
+            )}
+            <MealList
+              entries={dayEntries}
+              isToday={selected === today}
+              onEdit={(entry) => setCapture({ id: ++captureId.current, mode: 'edit', entry })}
+              onDelete={remove}
+            />
           </div>
         </div>
       </div>
 
       <CaptureDock {...actions} />
-      {/* Without `capture`, Android offers both the camera and the gallery. */}
-      <input
-        ref={photoInput}
-        type="file"
-        accept="image/*"
-        hidden
-        onChange={(e) => {
-          const file = e.target.files?.[0];
-          e.target.value = '';
-          if (file) setCapture({ id: ++captureId.current, mode: 'photo', file });
-        }}
+      <CaptureSheet
+        request={capture}
+        date={selected}
+        budget={{ eaten: totals, plan }}
+        onClose={() => setCapture(null)}
+        onDelete={remove}
       />
-      <CaptureSheet request={capture} date={selected} onClose={() => setCapture(null)} onRetakePhoto={takePhoto} />
       <AnimatePresence>{profileOpen && <ProfileScreen key="profile" onClose={() => setProfileOpen(false)} />}</AnimatePresence>
     </>
   );

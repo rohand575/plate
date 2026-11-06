@@ -1,6 +1,6 @@
 import { Camera, Keyboard, Mic, Trash, Type } from 'lucide-react';
 import { AnimatePresence, animate, motion, useMotionValue, useTransform } from 'motion/react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useRef } from 'react';
 import { Card } from '../../components/ui/controls';
 import { timeLabel } from '../../lib/dates';
 import { fmtInt } from '../../lib/format';
@@ -28,10 +28,18 @@ function subtitle(entry: Entry): string {
   return parts.join(' · ');
 }
 
-function EntryRow({ entry, onDelete }: { entry: Entry; onDelete: () => void }) {
+function EntryRow({ entry, onEdit, onDelete }: { entry: Entry; onEdit: () => void; onDelete: () => void }) {
   const x = useMotionValue(0);
+  const dragged = useRef(false);
   const actionOpacity = useTransform(x, [-REVEAL, -24, 0], [1, 0.6, 0]);
   const settle = (to: number) => animate(x, to, spring);
+
+  function open() {
+    // A swipe ends with a click too; ignore it, and let a tap close an open swipe first.
+    if (dragged.current) return;
+    if (x.get() < -4) return void settle(0);
+    onEdit();
+  }
 
   return (
     <motion.li
@@ -57,25 +65,34 @@ function EntryRow({ entry, onDelete }: { entry: Entry; onDelete: () => void }) {
         dragDirectionLock
         dragConstraints={{ left: -REVEAL, right: 0 }}
         dragElastic={{ left: 0.15, right: 0 }}
+        onPointerDown={() => (dragged.current = false)}
+        onDragStart={() => (dragged.current = true)}
         onDragEnd={(_, info) => settle(info.offset.x < -44 || info.velocity.x < -400 ? -REVEAL : 0)}
-        className="relative flex items-center gap-3 bg-surface px-4 py-3.5"
+        className="relative flex items-center bg-surface pr-4 lg:pr-2"
       >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-fill-2 text-ink-2">
-          {SOURCE_ICON[entry.source]}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[16px] font-medium tracking-[-0.01em]">{entry.title}</p>
-          <p className="mt-0.5 truncate text-[13px] text-ink-2">{subtitle(entry)}</p>
-        </div>
-        <div className="shrink-0 text-right">
-          <p className="text-[16px] font-semibold tabular-nums tracking-[-0.01em]">{fmtInt(entry.totals.kcal)}</p>
-          <p className="text-[12px] text-ink-3">kcal</p>
-        </div>
+        <button
+          type="button"
+          onClick={open}
+          aria-label={`Edit ${entry.title}`}
+          className="flex min-w-0 flex-1 items-center gap-3 py-3.5 pl-4 text-left transition-colors active:bg-fill-2/60 lg:hover:bg-fill-2/50"
+        >
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-fill-2 text-ink-2">
+            {SOURCE_ICON[entry.source]}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[16px] font-medium tracking-[-0.01em]">{entry.title}</span>
+            <span className="mt-0.5 block truncate text-[13px] text-ink-2">{subtitle(entry)}</span>
+          </span>
+          <span className="shrink-0 pr-1 text-right">
+            <span className="block text-[16px] font-semibold tabular-nums tracking-[-0.01em]">{fmtInt(entry.totals.kcal)}</span>
+            <span className="block text-[12px] text-ink-3">kcal</span>
+          </span>
+        </button>
         <button
           type="button"
           onClick={onDelete}
           aria-label={`Delete ${entry.title}`}
-          className="hidden size-8 shrink-0 items-center justify-center rounded-full text-ink-3 opacity-0 transition hover:bg-fill-2 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 lg:flex"
+          className="ml-1 hidden size-8 shrink-0 items-center justify-center rounded-full text-ink-3 opacity-0 transition hover:bg-fill-2 hover:text-danger focus-visible:opacity-100 group-hover:opacity-100 lg:flex"
         >
           <Trash size={16} />
         </button>
@@ -105,10 +122,12 @@ function EmptyDay({ isToday }: { isToday: boolean }) {
 export function MealList({
   entries,
   isToday,
+  onEdit,
   onDelete,
 }: {
   entries: Entry[] | null;
   isToday: boolean;
+  onEdit: (entry: Entry) => void;
   onDelete: (entry: Entry) => void;
 }) {
   if (entries === null) return null;
@@ -138,7 +157,7 @@ export function MealList({
                 <ul className="divide-y divide-hairline">
                   <AnimatePresence initial={false}>
                     {list.map((entry) => (
-                      <EntryRow key={entry.id} entry={entry} onDelete={() => onDelete(entry)} />
+                      <EntryRow key={entry.id} entry={entry} onEdit={() => onEdit(entry)} onDelete={() => onDelete(entry)} />
                     ))}
                   </AnimatePresence>
                 </ul>

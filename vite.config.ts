@@ -78,6 +78,28 @@ export default defineConfig(({ mode }) => {
             { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' },
             { src: 'maskable-icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           ],
+          // Long-press the installed app's icon to jump straight into logging (handled in Home).
+          shortcuts: [
+            {
+              name: 'Snap a meal',
+              short_name: 'Snap',
+              description: 'Take a photo of your food',
+              url: '/?capture=photo',
+              icons: [{ src: 'shortcut-photo.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Say what you ate',
+              short_name: 'Speak',
+              url: '/?capture=voice',
+              icons: [{ src: 'shortcut-voice.png', sizes: '192x192', type: 'image/png' }],
+            },
+            {
+              name: 'Type what you ate',
+              short_name: 'Type',
+              url: '/?capture=text',
+              icons: [{ src: 'shortcut-text.png', sizes: '192x192', type: 'image/png' }],
+            },
+          ],
         },
         workbox: {
           // Only the Latin subset of Inter is needed offline.

@@ -2,7 +2,7 @@
 import OpenAI from 'openai';
 import { assertAllowed, verifyUser } from './auth.js';
 import { HttpError, json } from './http.js';
-import { analyzeMeal, transcribe } from './openai.js';
+import { analyzeMeal, parseKitchen, transcribe } from './openai.js';
 import { consumeQuota } from './quota.js';
 
 // Vercel caps request bodies at 4.5 MB; base64 adds a third, so ~3 MB of audio or image.
@@ -58,7 +58,9 @@ export async function handleAnalyze(request) {
   try {
     const user = await verifyUser(request.headers.get('authorization'));
     assertAllowed(user.email);
-    const input = parseBody(await request.json().catch(() => null));
+    const body = /** @type {any} */ (await request.json().catch(() => null));
+    const input = parseBody(body);
+    const kitchen = parseKitchen(body?.kitchen);
     const usage = await consumeQuota(user, Number(process.env.AI_DAILY_LIMIT) || 40);
 
     let transcript = null;
@@ -66,12 +68,12 @@ export async function handleAnalyze(request) {
     if (input.kind === 'audio') {
       transcript = await transcribe(input.audio, input.mimeType);
       if (!transcript) throw new HttpError(422, 'I didn’t catch that. Try again a little closer to the mic.');
-      analysis = await analyzeMeal({ text: transcript });
+      analysis = await analyzeMeal({ text: transcript, kitchen });
     } else if (input.kind === 'text') {
       transcript = input.text;
-      analysis = await analyzeMeal({ text: input.text });
+      analysis = await analyzeMeal({ text: input.text, kitchen });
     } else {
-      analysis = await analyzeMeal({ imageDataUrl: input.imageDataUrl, note: input.note });
+      analysis = await analyzeMeal({ imageDataUrl: input.imageDataUrl, note: input.note, kitchen });
     }
 
     return json({ transcript, analysis, usage });

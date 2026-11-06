@@ -14,6 +14,9 @@ export function fromKey(key: DateKey): Date {
 
 export const todayKey = () => toKey(new Date());
 
+/** A well-formed day that isn't in the future. */
+export const isLoggableDay = (key: string) => /^\d{4}-\d{2}-\d{2}$/.test(key) && key <= todayKey();
+
 export function addDays(key: DateKey, days: number): DateKey {
   const d = fromKey(key);
   d.setDate(d.getDate() + days);

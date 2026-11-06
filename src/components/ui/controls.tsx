@@ -1,6 +1,7 @@
 import { Check } from 'lucide-react';
 import { motion } from 'motion/react';
 import { type ReactNode, useId } from 'react';
+import { todayKey } from '../../lib/dates';
 import { cx } from '../../lib/format';
 import { spring } from '../../lib/motion';
 
@@ -170,6 +171,23 @@ export function NumberField({
         <p className={cx('mt-1.5 px-1 text-[13px]', error ? 'text-danger' : 'text-ink-2')}>{error ?? hint}</p>
       )}
     </div>
+  );
+}
+
+/** Compact date row, e.g. for moving a logged meal to another day. */
+export function DayField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex h-12 items-center justify-between gap-3 rounded-[14px] bg-fill-2 px-4">
+      <span className="text-[15px] font-medium text-ink-2">Day</span>
+      <input
+        type="date"
+        value={value}
+        max={todayKey()}
+        required
+        onChange={(e) => onChange(e.target.value)}
+        className="min-w-0 bg-transparent text-right text-[15px] font-semibold outline-none"
+      />
+    </label>
   );
 }
 

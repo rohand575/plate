@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { scaleItem, stepFor, unitLabel } from './portions';
+import { portionQuantity, scaleItem, stepFor, unitLabel } from './portions';
 import type { AnalyzedItem } from './types';
 
 const oil: AnalyzedItem = { name: 'Oil', quantity: 2, unit: 'tbsp', grams: 27, kcal: 240, protein: 0, carbs: 0, fat: 27, assumption: null };
@@ -9,6 +9,15 @@ describe('scaleItem', () => {
   it('scales nutrients in proportion to quantity', () => {
     expect(scaleItem(oil, 1)).toMatchObject({ quantity: 1, kcal: 120, fat: 14, grams: 14 });
     expect(scaleItem(rice, 300)).toMatchObject({ kcal: 390, carbs: 86, grams: 300 });
+  });
+});
+
+describe('portionQuantity', () => {
+  it('keeps weights whole and counts to two decimals', () => {
+    expect(portionQuantity(rice, 0.75)).toBe(113);
+    expect(portionQuantity(oil, 0.75)).toBe(1.5);
+    expect(portionQuantity({ ...oil, quantity: 1 }, 0.75)).toBe(0.75);
+    expect(portionQuantity(oil, 1)).toBe(2);
   });
 });
 

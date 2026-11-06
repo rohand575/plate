@@ -19,6 +19,12 @@ export function stepFor(item: AnalyzedItem): number {
   return item.quantity >= 200 ? 25 : 10;
 }
 
+/** The item's quantity for a share of it, e.g. ¾: whole grams/ml, otherwise to 2 decimals. */
+export function portionQuantity(item: AnalyzedItem, share: number): number {
+  const q = item.quantity * share;
+  return isMetric(item.unit) ? Math.round(q) : Math.round(q * 100) / 100;
+}
+
 /** The item at a new quantity, with nutrients scaled in proportion. */
 export function scaleItem(item: AnalyzedItem, quantity: number): FoodItem {
   const factor = item.quantity > 0 ? quantity / item.quantity : 1;

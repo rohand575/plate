@@ -2,6 +2,11 @@
 
 A minimal, installable calorie tracker. Sign in with Google, answer a few questions, and Plate works out your maintenance calories and a daily target. Log food by saying it, photographing it, or typing it — OpenAI estimates the calories and macros, and you confirm before anything is saved..
 
+- **Check before you eat.** Snap a meal with the in-app camera and the review screen shows what it does to today's target ("270 kcal over"), which share of it fits (½ / ¾), and one lighter swap. Then add it, skip it, or **Decide later** — saved checks wait on Today for 12 hours and log without another AI call.
+- **Edit anything you logged** — tap an entry to change amounts, meal or day.
+- **Your kitchen** (Profile → Portions and cooking): roti and katori size, oil, ghee and milk. Every estimate uses it when a meal doesn't say.
+- **Home-screen shortcuts:** long-press the installed app's icon for *Snap a meal*, *Say what you ate* or *Type what you ate*.
+
 ## How it works
 
 ```
@@ -19,7 +24,7 @@ Phone or laptop (installable web app — React + Vite)
 ```
 
 - **The OpenAI key only lives in Vercel's environment variables.** It is never sent to the browser.
-- **Nothing is saved until you tap Add.** Voice recordings and photos go to OpenAI for that one request (`store: false`) and are not kept by Plate.
+- **Nothing is saved until you tap Add.** Voice recordings and photos go to OpenAI for that one request (`store: false`) and are not kept by Plate. "Decide later" keeps only the estimate (no photo), in the browser on that device.
 - **No Firebase Cloud Functions**, so Firebase stays on the free Spark plan.
 - **Targets** are calculated in the browser from each person's answers (see [How targets are calculated](#how-targets-are-calculated)).
 
@@ -154,10 +159,10 @@ Open https://plate.rohan-dhanawade.de in Chrome → **⋮ → Install app** (or 
 ```
 api/analyze.js     Vercel Function entry point
 server/            AI endpoint: auth check, daily limit, OpenAI calls (plain JS, type-checked)
-src/lib/           pure logic: nutrition maths, portions, dates
+src/lib/           pure logic: nutrition maths, portions, meal budget, dates, saved checks
 src/data/          backend interface + Firebase and demo implementations
 src/components/    design system (buttons, sheets, ring, rolling numbers, toasts)
-src/screens/       sign-in, onboarding, today, capture (voice/photo/text), profile
+src/screens/       sign-in, onboarding, today, capture (camera/voice/text, review, edit), profile, kitchen
 firestore.rules    per-person data isolation + daily AI counter
 vercel.json        build, function timeout, sign-in proxy, SPA routing
 ```

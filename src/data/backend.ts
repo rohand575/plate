@@ -1,4 +1,4 @@
-import type { AnalyzeInput, AnalyzeResult, AppUser, DateKey, Entry, NewEntry, Profile } from '../lib/types';
+import type { AnalyzeInput, AnalyzeResult, AppUser, DateKey, Entry, Kitchen, NewEntry, Profile } from '../lib/types';
 
 export type Unsubscribe = () => void;
 
@@ -17,13 +17,17 @@ export interface DataApi {
   /** Entries with `from <= date <= to`, ordered by time logged. */
   watchEntries(uid: string, from: DateKey, to: DateKey, cb: (entries: Entry[]) => void, onError: (e: Error) => void): Unsubscribe;
   addEntry(uid: string, entry: NewEntry): Promise<void>;
+  updateEntry(uid: string, id: string, entry: NewEntry): Promise<void>;
   restoreEntry(uid: string, entry: Entry): Promise<void>;
   deleteEntry(uid: string, id: string): Promise<void>;
 }
 
 export interface AiApi {
-  /** Turns a recording, description or photo into estimated food items. Throws AiError. */
-  analyze(input: AnalyzeInput): Promise<AnalyzeResult>;
+  /**
+   * Turns a recording, description or photo into estimated food items. `kitchen` tells the AI
+   * how this person cooks. Throws AiError.
+   */
+  analyze(input: AnalyzeInput, kitchen: Kitchen | null): Promise<AnalyzeResult>;
 }
 
 export interface Backend {

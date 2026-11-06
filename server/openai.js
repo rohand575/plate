@@ -5,7 +5,9 @@ import { requireEnv } from './http.js';
 /**
  * @typedef {{ name: string; quantity: number; unit: string; grams: number | null; kcal: number;
  *   protein: number; carbs: number; fat: number; assumption: string | null }} AnalyzedItem
- * @typedef {{ title: string; items: AnalyzedItem[]; confidence: 'high' | 'medium' | 'low'; note: string | null }} MealAnalysis
+ * @typedef {{ title: string; items: AnalyzedItem[]; confidence: 'high' | 'medium' | 'low'; note: string | null;
+ *   tip: string | null }} MealAnalysis
+ * @typedef {{ roti: string; katori: string; oil: string; ghee: string; milk: string; note: string }} Kitchen
  */
 
 const analysisModel = () => process.env.OPENAI_MODEL || 'gpt-6.1-terra';
@@ -58,16 +60,73 @@ How to estimate:
 
 For photos: identify every visible food, judge portions from the plate, bowl and cutlery, and use any note the person adds.
 
+When the person describes their kitchen (roti size, katori size, how much oil or ghee they use, their milk), use that as the default whenever the meal itself doesn't say otherwise. It overrides the typical values above.
+
 "title" is a short natural name for the whole meal, at most 40 characters, e.g. "Egg bhurji with toast".
 "confidence" is high when quantities were clear, medium for typical-serving guesses, low when the photo or description is ambiguous.
+"tip" is one short, practical way to make this meal lighter, with the kcal it saves, e.g. "Skip the ghee on the rotis: −90 kcal". Prefer the change that saves the most for the least effort. Use null when the meal is already light or nothing sensible would help.
 If the input isn't about food or drink, return no items and explain briefly in "note"; otherwise "note" is null.`;
+
+/** @type {Record<string, Record<string, string>>} */
+const KITCHEN_TEXT = {
+  roti: {
+    small: 'Rotis are small and thin (about 25 g atta, ~80 kcal each).',
+    medium: 'Rotis are medium (about 35 g atta, ~105 kcal each).',
+    large: 'Rotis are large or thick (about 50 g atta, ~150 kcal each).',
+  },
+  katori: {
+    small: 'A katori holds about 100 ml.',
+    medium: 'A katori holds about 150 ml.',
+    large: 'A katori holds about 250 ml.',
+  },
+  oil: {
+    light: 'Cooking uses little oil: about 1 tsp per serving of sabzi or dal.',
+    medium: 'Cooking uses a moderate amount of oil: about 2 tsp per serving of sabzi or dal.',
+    heavy: 'Cooking is generous with oil: about 1 tbsp or more per serving of sabzi or dal.',
+  },
+  ghee: {
+    rarely: 'Ghee is rarely added on top of rotis, rice or dal.',
+    sometimes: 'Ghee is sometimes added on top of rotis, rice or dal.',
+    usually: 'Ghee is usually added on top of rotis, rice or dal: about 1 tsp per serving.',
+  },
+  milk: {
+    full: 'Milk (for chai, coffee, dahi) is full-cream.',
+    toned: 'Milk (for chai, coffee, dahi) is toned.',
+    skimmed: 'Milk (for chai, coffee, dahi) is skimmed.',
+  },
+};
+
+const KITCHEN_KEYS = /** @type {const} */ (['roti', 'katori', 'oil', 'ghee', 'milk']);
+const KITCHEN_DEFAULTS = { roti: 'medium', katori: 'medium', oil: 'medium', ghee: 'sometimes', milk: 'toned' };
+
+/**
+ * Checks the kitchen settings sent by the app; unknown values fall back to typical ones.
+ * @param {any} raw
+ * @returns {Kitchen | null}
+ */
+export function parseKitchen(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  /** @type {Kitchen} */
+  const kitchen = { ...KITCHEN_DEFAULTS, note: typeof raw.note === 'string' ? raw.note.trim().slice(0, 300) : '' };
+  for (const key of KITCHEN_KEYS) {
+    if (typeof raw[key] === 'string' && Object.hasOwn(KITCHEN_TEXT[key], raw[key])) kitchen[key] = raw[key];
+  }
+  return kitchen;
+}
+
+/** @param {Kitchen} kitchen */
+function describeKitchen(kitchen) {
+  const lines = KITCHEN_KEYS.map((key) => KITCHEN_TEXT[key][kitchen[key]]);
+  if (kitchen.note) lines.push(`Also: """${kitchen.note}"""`);
+  return `About my kitchen, for anything I don't specify:\n${lines.map((l) => `- ${l}`).join('\n')}`;
+}
 
 const nullable = (/** @type {string} */ type) => ({ type: [type, 'null'] });
 
 const MEAL_SCHEMA = {
   type: 'object',
   additionalProperties: false,
-  required: ['title', 'items', 'confidence', 'note'],
+  required: ['title', 'items', 'confidence', 'note', 'tip'],
   properties: {
     title: { type: 'string' },
     items: {
@@ -91,11 +150,12 @@ const MEAL_SCHEMA = {
     },
     confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
     note: nullable('string'),
+    tip: nullable('string'),
   },
 };
 
 /**
- * @param {{ text?: string; imageDataUrl?: string; note?: string | null }} input
+ * @param {{ text?: string; imageDataUrl?: string; note?: string | null; kitchen?: Kitchen | null }} input
  * @returns {Promise<MealAnalysis>}
  */
 export async function analyzeMeal(input) {
@@ -109,6 +169,7 @@ export async function analyzeMeal(input) {
         },
       ]
     : [{ type: 'input_text', text: `What I ate: """${input.text}"""` }];
+  if (input.kitchen) content.unshift({ type: 'input_text', text: describeKitchen(input.kitchen) });
 
   const effort = /** @type {import('openai/resources/shared').ReasoningEffort} */ (reasoningEffort() || null);
   const response = await openai().responses.create({
@@ -157,5 +218,6 @@ export function sanitize(raw) {
     items,
     confidence: ['high', 'medium', 'low'].includes(raw?.confidence) ? raw.confidence : 'medium',
     note: str(raw?.note, 240) || null,
+    tip: (items.length > 0 && str(raw?.tip, 140)) || null,
   };
 }

@@ -139,7 +139,7 @@ export function createFirebaseBackend(): Backend {
           q,
           (snap) => {
             const entries = snap.docs.map((d) => {
-              const { createdAt: _createdAt, ...data } = d.data();
+              const { createdAt: _createdAt, updatedAt: _updatedAt, ...data } = d.data();
               return { id: d.id, ...data } as Entry;
             });
             cb(entries.sort(byLoggedAt));
@@ -150,6 +150,10 @@ export function createFirebaseBackend(): Backend {
       async addEntry(uid, entry) {
         await setDoc(doc(entriesCol(uid)), { ...entry, createdAt: serverTimestamp() });
       },
+      async updateEntry(uid, id, entry) {
+        // Merging keeps the original createdAt.
+        await setDoc(doc(entriesCol(uid), id), { ...entry, updatedAt: serverTimestamp() }, { merge: true });
+      },
       async restoreEntry(uid, { id, ...entry }) {
         await setDoc(doc(entriesCol(uid), id), { ...entry, createdAt: serverTimestamp() });
       },
@@ -158,7 +162,7 @@ export function createFirebaseBackend(): Backend {
       },
     },
     ai: {
-      analyze: (input) => analyzeWithApi(input, async () => auth.currentUser?.getIdToken()),
+      analyze: (input, kitchen) => analyzeWithApi(input, kitchen, async () => auth.currentUser?.getIdToken()),
     },
   };
 }
