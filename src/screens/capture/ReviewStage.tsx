@@ -1,9 +1,10 @@
 import { Clock, Globe, Info, Lightbulb, Minus, Plus, RotateCcw, ScanText, Trash } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { type ReactNode, useState } from 'react';
+import { useMealBook } from '../../app/mealBook';
 import { useSession } from '../../app/session';
 import { useToast } from '../../components/Toast';
-import { Button } from '../../components/ui/Button';
+import { Button, IconButton } from '../../components/ui/Button';
 import { DayField, SegmentedControl } from '../../components/ui/controls';
 import { NumberRoll } from '../../components/ui/NumberRoll';
 import { SHARES, type Share, fittingShare, mealImpact } from '../../lib/budget';
@@ -17,6 +18,7 @@ import { spring } from '../../lib/motion';
 import type { Plan } from '../../lib/nutrition';
 import { portionQuantity, scaleItem, stepFor, unitLabel } from '../../lib/portions';
 import type { AnalyzedItem, AnalyzeResult, DateKey, Entry, FoodItem, Meal, MealAnalysis, NewEntry, Nutrients } from '../../lib/types';
+import { FavouriteStar } from './MealsStage';
 import type { CaptureMode } from './stages';
 
 /** A fresh estimate, one kept with "Decide later", or an entry that's already logged. */
@@ -203,11 +205,27 @@ interface ReviewProps {
   onDone: () => void;
   onReanalyze: (text: string) => void;
   onRetry: () => void;
+  /** Replaces the default "Record again" / "Take another photo" / "Start over". */
+  retryLabel?: string;
   onDelete: (entry: Entry) => void;
 }
 
-export function ReviewStage({ result, mode, image, photoNote, date, target, budget, onDone, onReanalyze, onRetry, onDelete }: ReviewProps) {
+export function ReviewStage({
+  result,
+  mode,
+  image,
+  photoNote,
+  date,
+  target,
+  budget,
+  onDone,
+  onReanalyze,
+  onRetry,
+  retryLabel,
+  onDelete,
+}: ReviewProps) {
   const { backend, user } = useSession();
+  const book = useMealBook();
   const toast = useToast();
   const { analysis, usage } = result;
   const editing = target.kind === 'edit' ? target.entry : null;
@@ -230,6 +248,7 @@ export function ReviewStage({ result, mode, image, photoNote, date, target, budg
 
   const finalTitle = title.trim() || analysis.title;
   const notes = mode === 'photo' ? photoNote : draft.trim() || null;
+  const starred = book.isFavourite(finalTitle);
 
   function save() {
     const entry: NewEntry = {
@@ -315,13 +334,25 @@ export function ReviewStage({ result, mode, image, photoNote, date, target, budg
         </p>
       ) : (
         <>
-          <input
-            aria-label="Meal name"
-            value={title}
-            maxLength={60}
-            onChange={(e) => setTitle(e.target.value)}
-            className="mt-4 w-full rounded-md bg-transparent text-[22px] font-semibold tracking-[-0.02em] outline-none focus-visible:bg-fill-2"
-          />
+          <div className="mt-4 flex items-center gap-2">
+            <input
+              aria-label="Meal name"
+              value={title}
+              maxLength={60}
+              onChange={(e) => setTitle(e.target.value)}
+              className="min-w-0 flex-1 rounded-md bg-transparent text-[22px] font-semibold tracking-[-0.02em] outline-none focus-visible:bg-fill-2"
+            />
+            <IconButton
+              label={starred ? 'Remove from favourites' : 'Save to favourites'}
+              aria-pressed={starred}
+              tone="plain"
+              className="-mr-2"
+              disabled={rows.length === 0}
+              onClick={() => book.toggleFavourite({ title: finalTitle, items: scaled, totals, source: mode, meal })}
+            >
+              <FavouriteStar on={starred} size={22} />
+            </IconButton>
+          </div>
           <Basis analysis={analysis} />
           <ul className="mt-1 divide-y divide-hairline">
             <AnimatePresence initial={false}>
@@ -407,7 +438,7 @@ export function ReviewStage({ result, mode, image, photoNote, date, target, budg
         </Button>
       ) : (
         <button type="button" onClick={onRetry} className="mt-1 w-full py-2.5 text-[15px] font-medium text-ink-2">
-          {mode === 'voice' ? 'Record again' : mode === 'photo' ? 'Take another photo' : 'Start over'}
+          {retryLabel ?? (mode === 'voice' ? 'Record again' : mode === 'photo' ? 'Take another photo' : 'Start over')}
         </button>
       )}
       {remaining != null && remaining <= 5 && (

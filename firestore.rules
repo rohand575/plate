@@ -23,6 +23,19 @@ service cloud.firestore {
           && request.resource.data.items.size() <= 50;
       }
 
+      match /favourites/{favouriteId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.title is string
+          && request.resource.data.title.size() <= 80
+          && request.resource.data.meal in ['breakfast', 'lunch', 'snack', 'dinner']
+          && request.resource.data.totals.kcal is number
+          && request.resource.data.totals.kcal >= 0
+          && request.resource.data.totals.kcal < 20000
+          && request.resource.data.items is list
+          && request.resource.data.items.size() <= 50;
+      }
+
       match /weights/{date} {
         allow read, delete: if isOwner(uid);
         allow create, update: if isOwner(uid)

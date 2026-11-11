@@ -56,6 +56,12 @@ export function dayTitle(key: DateKey, today: DateKey = todayKey()): string {
   return fromKey(key).toLocaleDateString(undefined, { weekday: 'long' });
 }
 
+/** "Today", "Yesterday", a weekday within the last week, otherwise e.g. "3 Oct". */
+export function shortDay(key: DateKey, today: DateKey = todayKey()): string {
+  if (key >= addDays(today, -6)) return dayTitle(key, today);
+  return fromKey(key).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+}
+
 export const longDate = (key: DateKey) =>
   fromKey(key).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 

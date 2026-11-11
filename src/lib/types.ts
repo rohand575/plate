@@ -73,6 +73,22 @@ export interface Entry {
 
 export type NewEntry = Omit<Entry, 'id'>;
 
+/** A meal that can be logged again as it is, without asking the AI. */
+export interface MealPreset {
+  title: string;
+  items: FoodItem[];
+  totals: Nutrients;
+  source: EntrySource;
+  /** The meal it was last logged under, or saved from. */
+  meal: Meal;
+}
+
+/** A meal the person starred; kept with their data. */
+export interface Favourite extends MealPreset {
+  id: string;
+  savedAt: number;
+}
+
 /** A food item as estimated by the AI, before the person confirms it. */
 export interface AnalyzedItem extends FoodItem {
   quantity: number;

@@ -1,9 +1,14 @@
-import type { AppUser, Entry, MealAnalysis, Profile } from '../lib/types';
+import type { AppUser, Entry, Favourite, MealAnalysis, Profile } from '../lib/types';
 import { type Backend, byLoggedAt } from './backend';
 
 /** Local-only backend for `npm run demo`: simulated sign-in, data kept in localStorage. */
 
-const KEYS = { session: 'plate.demo.session', profile: 'plate.demo.profile', entries: 'plate.demo.entries' };
+const KEYS = {
+  session: 'plate.demo.session',
+  profile: 'plate.demo.profile',
+  entries: 'plate.demo.entries',
+  favourites: 'plate.demo.favourites',
+};
 const DEMO_USER: AppUser = { uid: 'demo', displayName: 'Demo User', email: 'demo@plate.app', photoURL: null };
 
 function read<T>(key: string, fallback: T): T {
@@ -85,8 +90,10 @@ export function createDemoBackend(): Backend {
         subscribe(() =>
           cb(read<Entry[]>(KEYS.entries, []).filter((e) => e.date >= from && e.date <= to).sort(byLoggedAt)),
         ),
-      async addEntry(_uid, entry) {
-        write(KEYS.entries, [...read<Entry[]>(KEYS.entries, []), { ...entry, id: crypto.randomUUID() }]);
+      watchRecentEntries: (_uid, count, cb) =>
+        subscribe(() => cb(read<Entry[]>(KEYS.entries, []).sort((a, b) => b.loggedAt - a.loggedAt).slice(0, count))),
+      async addEntry(_uid, entry, id = crypto.randomUUID()) {
+        write(KEYS.entries, [...read<Entry[]>(KEYS.entries, []), { ...entry, id }]);
       },
       async updateEntry(_uid, id, entry) {
         write(KEYS.entries, read<Entry[]>(KEYS.entries, []).map((e) => (e.id === id ? { ...entry, id } : e)));
@@ -96,6 +103,14 @@ export function createDemoBackend(): Backend {
       },
       async deleteEntry(_uid, id) {
         write(KEYS.entries, read<Entry[]>(KEYS.entries, []).filter((e) => e.id !== id));
+      },
+      watchFavourites: (_uid, cb) =>
+        subscribe(() => cb(read<Favourite[]>(KEYS.favourites, []).sort((a, b) => b.savedAt - a.savedAt))),
+      async saveFavourite(_uid, favourite) {
+        write(KEYS.favourites, [...read<Favourite[]>(KEYS.favourites, []).filter((f) => f.id !== favourite.id), favourite]);
+      },
+      async deleteFavourite(_uid, id) {
+        write(KEYS.favourites, read<Favourite[]>(KEYS.favourites, []).filter((f) => f.id !== id));
       },
     },
     ai: {

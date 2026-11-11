@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { MealBookContext, useMealBookState } from '../../app/mealBook';
 import { useSession } from '../../app/session';
 import { useToast } from '../../components/Toast';
 import { Avatar } from '../../components/ui/brand';
@@ -18,6 +19,7 @@ import { CaptureSheet, type CaptureRequest } from '../capture/CaptureSheet';
 import { ProfileScreen } from '../profile/ProfileScreen';
 import { CaptureCard, CaptureDock, type CaptureActions } from './Capture';
 import { MealList } from './MealList';
+import { QuickAdd } from './QuickAdd';
 import { SavedChecks } from './SavedChecks';
 import { SummaryCard } from './SummaryCard';
 import { WeekStrip } from './WeekStrip';
@@ -115,6 +117,7 @@ export function Home() {
   const [capture, setCapture] = useState<CaptureRequest | null>(null);
   const captureId = useRef(0);
   const saved = useSavedChecks(user.uid);
+  const book = useMealBookState(selected);
 
   // Home-screen shortcuts open Plate at /?capture=photo|voice|text.
   useEffect(() => {
@@ -171,7 +174,7 @@ export function Home() {
   );
 
   return (
-    <>
+    <MealBookContext.Provider value={book}>
       <div className="mx-auto w-full max-w-[600px] px-4 pb-[calc(env(safe-area-inset-bottom)+132px)] pt-[max(env(safe-area-inset-top),8px)] lg:max-w-[1120px] lg:px-8 lg:pb-16 lg:pt-10">
         <DayHeader selected={selected} today={today} onToday={() => setSelected(today)} onProfile={() => setProfileOpen(true)} />
 
@@ -183,6 +186,10 @@ export function Home() {
           </div>
           <div className="space-y-6 pt-2 lg:pt-0">
             {desktop && weekStrip}
+            <QuickAdd
+              onOpen={(meal) => setCapture({ id: ++captureId.current, mode: 'preset', meal })}
+              onSeeAll={() => setCapture({ id: ++captureId.current, mode: 'meals' })}
+            />
             {selected === today && (
               <SavedChecks
                 checks={saved}
@@ -209,6 +216,6 @@ export function Home() {
         onDelete={remove}
       />
       <AnimatePresence>{profileOpen && <ProfileScreen key="profile" onClose={() => setProfileOpen(false)} />}</AnimatePresence>
-    </>
+    </MealBookContext.Provider>
   );
 }

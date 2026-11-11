@@ -1,4 +1,4 @@
-import type { AnalyzeInput, AnalyzeResult, AppUser, DateKey, Entry, Kitchen, NewEntry, Profile } from '../lib/types';
+import type { AnalyzeInput, AnalyzeResult, AppUser, DateKey, Entry, Favourite, Kitchen, NewEntry, Profile } from '../lib/types';
 
 export type Unsubscribe = () => void;
 
@@ -16,10 +16,18 @@ export interface DataApi {
   logWeight(uid: string, date: DateKey, kg: number): Promise<void>;
   /** Entries with `from <= date <= to`, ordered by time logged. */
   watchEntries(uid: string, from: DateKey, to: DateKey, cb: (entries: Entry[]) => void, onError: (e: Error) => void): Unsubscribe;
-  addEntry(uid: string, entry: NewEntry): Promise<void>;
+  /** The `count` most recently logged entries, newest first. */
+  watchRecentEntries(uid: string, count: number, cb: (entries: Entry[]) => void, onError: (e: Error) => void): Unsubscribe;
+  /** Pass `id` to be able to undo the add straight away. */
+  addEntry(uid: string, entry: NewEntry, id?: string): Promise<void>;
   updateEntry(uid: string, id: string, entry: NewEntry): Promise<void>;
   restoreEntry(uid: string, entry: Entry): Promise<void>;
   deleteEntry(uid: string, id: string): Promise<void>;
+  /** Favourites, most recently saved first. */
+  watchFavourites(uid: string, cb: (favourites: Favourite[]) => void, onError: (e: Error) => void): Unsubscribe;
+  /** Creates the favourite, or replaces the one with the same id. */
+  saveFavourite(uid: string, favourite: Favourite): Promise<void>;
+  deleteFavourite(uid: string, id: string): Promise<void>;
 }
 
 export interface AiApi {

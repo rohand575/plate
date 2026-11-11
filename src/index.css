@@ -76,6 +76,14 @@
   }
 }
 
+/* Horizontal strips that scroll by swiping, without a visible scrollbar. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @keyframes shimmer {
   from {
     background-position: 100% 0;

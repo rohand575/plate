@@ -9,11 +9,14 @@ import {
   signOut,
 } from 'firebase/auth';
 import {
+  type QueryDocumentSnapshot,
   collection,
   deleteDoc,
   doc,
   initializeFirestore,
+  limit,
   onSnapshot,
+  orderBy,
   persistentLocalCache,
   persistentMultipleTabManager,
   query,
@@ -22,7 +25,8 @@ import {
   where,
   writeBatch,
 } from 'firebase/firestore';
-import type { Entry, Profile } from '../lib/types';
+import { toPreset } from '../lib/presets';
+import type { Entry, Favourite, Profile } from '../lib/types';
 import { analyzeWithApi } from './aiClient';
 import { type Backend, ConfigError, byLoggedAt } from './backend';
 
@@ -44,6 +48,11 @@ function prefersRedirect(): boolean {
   const standalone = window.matchMedia('(display-mode: standalone)').matches;
   const touch = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   return standalone || touch;
+}
+
+function toEntry(d: QueryDocumentSnapshot): Entry {
+  const { createdAt: _createdAt, updatedAt: _updatedAt, ...data } = d.data();
+  return { id: d.id, ...data } as Entry;
 }
 
 export function createFirebaseBackend(): Backend {
@@ -69,6 +78,7 @@ export function createFirebaseBackend(): Backend {
 
   const userRef = (uid: string) => doc(db, 'users', uid);
   const entriesCol = (uid: string) => collection(db, 'users', uid, 'entries');
+  const favouritesCol = (uid: string) => collection(db, 'users', uid, 'favourites');
 
   return {
     kind: 'firebase',
@@ -135,20 +145,15 @@ export function createFirebaseBackend(): Backend {
       },
       watchEntries(uid, from, to, cb, onError) {
         const q = query(entriesCol(uid), where('date', '>=', from), where('date', '<=', to));
-        return onSnapshot(
-          q,
-          (snap) => {
-            const entries = snap.docs.map((d) => {
-              const { createdAt: _createdAt, updatedAt: _updatedAt, ...data } = d.data();
-              return { id: d.id, ...data } as Entry;
-            });
-            cb(entries.sort(byLoggedAt));
-          },
-          onError,
-        );
+        return onSnapshot(q, (snap) => cb(snap.docs.map(toEntry).sort(byLoggedAt)), onError);
       },
-      async addEntry(uid, entry) {
-        await setDoc(doc(entriesCol(uid)), { ...entry, createdAt: serverTimestamp() });
+      watchRecentEntries(uid, count, cb, onError) {
+        const q = query(entriesCol(uid), orderBy('loggedAt', 'desc'), limit(count));
+        return onSnapshot(q, (snap) => cb(snap.docs.map(toEntry)), onError);
+      },
+      async addEntry(uid, entry, id) {
+        const ref = id ? doc(entriesCol(uid), id) : doc(entriesCol(uid));
+        await setDoc(ref, { ...entry, createdAt: serverTimestamp() });
       },
       async updateEntry(uid, id, entry) {
         // Merging keeps the original createdAt.
@@ -159,6 +164,22 @@ export function createFirebaseBackend(): Backend {
       },
       async deleteEntry(uid, id) {
         await deleteDoc(doc(entriesCol(uid), id));
+      },
+      watchFavourites(uid, cb, onError) {
+        return onSnapshot(
+          favouritesCol(uid),
+          (snap) => {
+            const favourites = snap.docs.map((d) => ({ ...d.data(), id: d.id }) as Favourite);
+            cb(favourites.sort((a, b) => b.savedAt - a.savedAt));
+          },
+          onError,
+        );
+      },
+      async saveFavourite(uid, favourite) {
+        await setDoc(doc(favouritesCol(uid), favourite.id), { ...toPreset(favourite), savedAt: favourite.savedAt });
+      },
+      async deleteFavourite(uid, id) {
+        await deleteDoc(doc(favouritesCol(uid), id));
       },
     },
     ai: {

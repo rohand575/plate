@@ -4,6 +4,7 @@ A minimal, installable calorie tracker. Sign in with Google, answer a few questi
 
 - **Check before you eat.** Snap a meal with the in-app camera and the review screen shows what it does to today's target ("270 kcal over"), which share of it fits (½ / ¾), and one lighter swap. Then add it, skip it, or **Decide later** — saved checks wait on Today for 12 hours and log without another AI call.
 - **Packaged food uses real label values.** Photograph the nutrition label and Plate copies it; photograph the front (or name the product) and the AI searches the web for that product's published values. The review screen says which ("Numbers from the nutrition label" / "Nutrition facts found online · site").
+- **Log it again without the AI.** Today's *Quick add* row shows your favourite and frequent meals: tap **+** to add one as it was last logged, or tap the card to change the amounts first. *See all* lists every favourite and recent meal with search. Typing a meal you've had before suggests it too. Star a meal on the review screen to save it as a favourite without logging it. None of this uses an AI log.
 - **Edit anything you logged** — tap an entry to change amounts, meal or day.
 - **Your kitchen** (Profile → Portions and cooking): roti and katori size, oil, ghee and milk. Every estimate uses it when a meal doesn't say.
 - **Home-screen shortcuts:** long-press the installed app's icon for *Snap a meal*, *Say what you ate* or *Type what you ate*.
@@ -154,7 +155,7 @@ Open https://plate.rohan-dhanawade.de in Chrome → **⋮ → Install app** (or 
 | `npm run dev` | Dev server + local `/api/analyze`, using `.env.local` |
 | `npm run demo` | Dev server with no Firebase or OpenAI |
 | `npm run build` | Typecheck the app and server, then build into `dist/` |
-| `npm test` | Unit tests (targets, portion scaling) |
+| `npm test` | Unit tests (targets, portion scaling, recent meals) |
 | `npm run icons` | Regenerate app icons from `public/logo.svg` |
 
 ## Project layout
@@ -162,10 +163,10 @@ Open https://plate.rohan-dhanawade.de in Chrome → **⋮ → Install app** (or 
 ```
 api/analyze.js     Vercel Function entry point
 server/            AI endpoint: auth check, daily limit, OpenAI calls (plain JS, type-checked)
-src/lib/           pure logic: nutrition maths, portions, meal budget, dates, saved checks
+src/lib/           pure logic: nutrition maths, portions, meal budget, dates, saved checks, recent meals
 src/data/          backend interface + Firebase and demo implementations
 src/components/    design system (buttons, sheets, ring, rolling numbers, toasts)
 src/screens/       sign-in, onboarding, today, capture (camera/voice/text, review, edit), profile, kitchen
-firestore.rules    per-person data isolation + daily AI counter
+firestore.rules    per-person data isolation, favourites + daily AI counter
 vercel.json        build, function timeout, sign-in proxy, SPA routing
 ```

@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useMealBook } from '../../app/mealBook';
 import { useSession } from '../../app/session';
 import { Sheet } from '../../components/ui/Sheet';
 import { AiError } from '../../data/backend';
@@ -8,36 +9,46 @@ import { haptic } from '../../lib/haptics';
 import type { PreparedImage } from '../../lib/image';
 import type { SavedCheck } from '../../lib/later';
 import { sheetSpring } from '../../lib/motion';
-import type { AnalyzeInput, AnalyzeResult, DateKey, Entry } from '../../lib/types';
+import { unstarred } from '../../lib/presets';
+import type { AnalyzeInput, AnalyzeResult, DateKey, Entry, EntrySource, FoodItem, MealPreset } from '../../lib/types';
 import { AddFoodForm } from '../home/AddFoodForm';
 import { CameraStage } from './CameraStage';
+import { MealsStage } from './MealsStage';
 import { RecordStage } from './RecordStage';
 import { type DayBudget, ReviewStage, type ReviewTarget } from './ReviewStage';
 import { AnalyzingStage, type CaptureMode, ComposeStage, PhotoStage, ProblemStage } from './stages';
 
-/** Opens the sheet: a new capture, a meal saved with "Decide later", or a logged entry to edit. */
+/**
+ * Opens the sheet: a new capture, the favourite and recent meals, one of those meals to log
+ * again, a meal saved with "Decide later", or a logged entry to edit.
+ */
 export type CaptureRequest = { id: number } & (
   | { mode: 'voice' }
   | { mode: 'text' }
   | { mode: 'photo' }
+  | { mode: 'meals' }
+  | { mode: 'preset'; meal: MealPreset }
   | { mode: 'saved'; check: SavedCheck }
   | { mode: 'edit'; entry: Entry }
 );
 
 type Stage =
   | { name: 'record' }
-  | { name: 'compose' }
+  | { name: 'compose'; text?: string }
   | { name: 'manual' }
+  | { name: 'meals' }
   | { name: 'camera' }
   | { name: 'photo' }
   | { name: 'analyzing' }
-  | { name: 'review'; result: AnalyzeResult; run: number }
+  // `reused`: a favourite or recent meal, shown without asking the AI.
+  | { name: 'review'; result: AnalyzeResult; run: number; reused?: boolean }
   | { name: 'problem'; title: string; message: string; retry: () => void };
 
 const TITLES: Record<Stage['name'], string> = {
   record: 'Say what you ate',
   compose: 'Describe your meal',
   manual: 'Add food',
+  meals: 'Your meals',
   camera: 'Snap your meal',
   photo: 'Your photo',
   analyzing: 'Estimating',
@@ -45,27 +56,41 @@ const TITLES: Record<Stage['name'], string> = {
   problem: 'Hmm',
 };
 
-/** A logged entry in the shape the review screen edits. */
-function entryResult(entry: Entry): AnalyzeResult {
+/** A logged or reused meal in the shape the review screen edits. */
+function mealResult(meal: { title: string; items: FoodItem[] }, transcript: string | null): AnalyzeResult {
   return {
-    transcript: entry.source === 'photo' ? null : entry.transcript,
+    transcript,
     usage: null,
     analysis: {
-      title: entry.title,
+      title: meal.title,
       confidence: 'high',
       note: null,
       tip: null,
       basis: 'estimate',
       sourceUrl: null,
-      items: entry.items.map((item) => ({ ...item, quantity: item.quantity ?? 1, unit: item.unit ?? 'serving', assumption: null })),
+      items: meal.items.map((item) => ({ ...item, quantity: item.quantity ?? 1, unit: item.unit ?? 'serving', assumption: null })),
     },
   };
 }
 
+const entryResult = (entry: Entry) => mealResult(entry, entry.source === 'photo' ? null : entry.transcript);
+
+/** Meals entered as plain numbers are reviewed like a description. */
+const reviewMode = (source: EntrySource): CaptureMode => (source === 'manual' ? 'text' : source);
+
 function initialMode(request: CaptureRequest): CaptureMode {
-  if (request.mode === 'saved') return request.check.source;
-  if (request.mode === 'edit') return request.entry.source === 'manual' ? 'text' : request.entry.source;
-  return request.mode;
+  switch (request.mode) {
+    case 'saved':
+      return request.check.source;
+    case 'edit':
+      return reviewMode(request.entry.source);
+    case 'preset':
+      return reviewMode(request.meal.source);
+    case 'meals':
+      return 'text';
+    default:
+      return request.mode;
+  }
 }
 
 function initialStage(request: CaptureRequest): Stage {
@@ -76,6 +101,10 @@ function initialStage(request: CaptureRequest): Stage {
       return { name: 'compose' };
     case 'photo':
       return { name: 'camera' };
+    case 'meals':
+      return { name: 'meals' };
+    case 'preset':
+      return { name: 'review', result: mealResult(request.meal, null), run: 0, reused: true };
     case 'saved': {
       const { source, transcript, analysis } = request.check;
       return { name: 'review', result: { transcript: source === 'photo' ? null : transcript, analysis, usage: null }, run: 0 };
@@ -121,6 +150,8 @@ interface FlowProps {
 
 function CaptureFlow({ request, date, budget, onTitle, onDone, onDelete }: FlowProps) {
   const { backend, profile } = useSession();
+  const book = useMealBook();
+  const meals = useMemo(() => [...book.favourites, ...unstarred(book.recents, book.favourites)], [book.favourites, book.recents]);
   const [mode, setMode] = useState<CaptureMode>(() => initialMode(request));
   const [stage, setStage] = useState<Stage>(() => initialStage(request));
   const [image, setImage] = useState<PreparedImage | null>(null);
@@ -207,6 +238,12 @@ function CaptureFlow({ request, date, budget, onTitle, onDone, onDelete }: FlowP
     setMode('text');
     setStage({ name: 'compose' });
   };
+  const openMeal = (meal: MealPreset) => {
+    setMode(reviewMode(meal.source));
+    setImage(null);
+    setPhotoNote(null);
+    setStage({ name: 'review', result: mealResult(meal, null), run: ++runs.current, reused: true });
+  };
   const retry = () => setStage(mode === 'photo' ? { name: 'camera' } : mode === 'voice' ? { name: 'record' } : { name: 'compose' });
   const remove = (entry: Entry) => {
     onDelete(entry);
@@ -221,8 +258,27 @@ function CaptureFlow({ request, date, budget, onTitle, onDone, onDelete }: FlowP
     case 'compose':
       content = (
         <ComposeStage
+          initialText={stage.text}
+          meals={meals}
           onSubmit={(text) => void analyze({ kind: 'text', text })}
           onManual={() => setStage({ name: 'manual' })}
+          onMeals={() => setStage({ name: 'meals' })}
+          onOpenMeal={openMeal}
+          onAddMeal={(meal) => {
+            book.quickAdd(meal);
+            onDone();
+          }}
+        />
+      );
+      break;
+    case 'meals':
+      content = (
+        <MealsStage
+          onOpen={openMeal}
+          onDescribe={(text) => {
+            setMode('text');
+            setStage({ name: 'compose', text });
+          }}
         />
       );
       break;
@@ -259,7 +315,8 @@ function CaptureFlow({ request, date, budget, onTitle, onDone, onDelete }: FlowP
           target={target}
           budget={budget}
           onDone={onDone}
-          onRetry={retry}
+          onRetry={stage.reused ? () => setStage({ name: 'meals' }) : retry}
+          retryLabel={stage.reused ? 'Back to your meals' : undefined}
           onReanalyze={(text) => void analyze({ kind: 'text', text })}
           onDelete={remove}
         />

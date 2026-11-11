@@ -1,8 +1,12 @@
 import { CircleAlert, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { type FormEvent, useEffect, useId, useState } from 'react';
+import { type FormEvent, useEffect, useId, useMemo, useState } from 'react';
 import { Button } from '../../components/ui/Button';
+import { cx } from '../../lib/format';
 import type { PreparedImage } from '../../lib/image';
+import { matchMeals, mealKey } from '../../lib/presets';
+import type { MealPreset } from '../../lib/types';
+import { MealRow, mealDetail } from './MealsStage';
 
 export type CaptureMode = 'voice' | 'photo' | 'text';
 
@@ -31,9 +35,21 @@ export function ProblemStage({ title, message, primary, secondary }: { title: st
   );
 }
 
-export function ComposeStage({ onSubmit, onManual }: { onSubmit: (text: string) => void; onManual: () => void }) {
+interface ComposeProps {
+  initialText?: string;
+  /** Favourite and recent meals, suggested when the description matches one. */
+  meals: MealPreset[];
+  onSubmit: (text: string) => void;
+  onManual: () => void;
+  onMeals: () => void;
+  onOpenMeal: (meal: MealPreset) => void;
+  onAddMeal: (meal: MealPreset) => void;
+}
+
+export function ComposeStage({ initialText = '', meals, onSubmit, onManual, onMeals, onOpenMeal, onAddMeal }: ComposeProps) {
   const id = useId();
-  const [text, setText] = useState('');
+  const [text, setText] = useState(initialText);
+  const matches = useMemo(() => matchMeals(meals, text).slice(0, 3), [meals, text]);
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     if (text.trim()) onSubmit(text.trim());
@@ -60,11 +76,33 @@ export function ComposeStage({ onSubmit, onManual }: { onSubmit: (text: string) 
           className="block w-full resize-none bg-transparent text-[17px] leading-snug outline-none placeholder:text-ink-3"
         />
       </label>
+      {matches.length > 0 && (
+        <div className="mt-3">
+          <p className="px-0.5 text-[13px] font-medium text-ink-2">Had this before? Add it without waiting for the AI.</p>
+          <ul className="divide-y divide-hairline">
+            {matches.map((meal) => (
+              <MealRow
+                key={mealKey(meal.title)}
+                meal={meal}
+                detail={mealDetail(meal)}
+                added={false}
+                onOpen={() => onOpenMeal(meal)}
+                onAdd={() => onAddMeal(meal)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
       <Button type="submit" className="mt-4" disabled={!text.trim()}>
         <Sparkles size={18} />
         Estimate calories
       </Button>
-      <button type="button" onClick={onManual} className="mt-2 w-full py-2.5 text-[15px] font-medium text-ink-2">
+      {meals.length > 0 && (
+        <button type="button" onClick={onMeals} className="mt-2 w-full py-2.5 text-[15px] font-medium text-ink-2">
+          Pick a meal you’ve had before
+        </button>
+      )}
+      <button type="button" onClick={onManual} className={cx('w-full py-2.5 text-[15px] font-medium text-ink-2', meals.length === 0 && 'mt-2')}>
         Know the numbers? Enter them yourself
       </button>
     </form>

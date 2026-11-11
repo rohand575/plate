@@ -4,7 +4,7 @@ A premium, minimal, light-themed calorie tracker. Log food by voice or photo; AI
 
 Status: **approved** (revision 3). OpenAI for all AI. Firebase stays on the free **Spark** plan; the AI endpoint runs as a **Vercel Function** and the app is hosted on Vercel.
 
-Progress: Phase 1 ✅ built · Phase 2 ✅ built (voice, photo, text logging) · Extras ✅ built (see §13) · Phase 3 pending.
+Progress: Phase 1 ✅ built · Phase 2 ✅ built (voice, photo, text logging) · Extras ✅ built (see §13) · Recent and favourite meals ✅ built (§13.7) · rest of Phase 3 pending.
 
 ---
 
@@ -92,6 +92,7 @@ Voice is one round trip: the function transcribes and analyzes in the same call.
 ```
 users/{uid}                    profile, lifestyle answers, goal, computed targets
 users/{uid}/entries/{id}       date, meal, source (voice/photo/text), transcript, items[], totals
+users/{uid}/favourites/{id}    starred meals: title, items[], totals, source, meal, savedAt
 users/{uid}/weights/{date}     weigh-ins
 users/{uid}/usage/{day}        AI call counter (rules: create at 1, +1 only, no delete)
 ```
@@ -137,3 +138,4 @@ Checkpoint with the user after each phase.
 4. **Edit a logged meal** — tap an entry to change amounts, meal or day (manual entries reopen the manual form).
 5. **Kitchen profile** — `profile.kitchen` (roti/katori size, oil, ghee, milk, free-text note) is sent with each analysis and added to the prompt as defaults.
 6. **Packaged food** — the prompt treats branded products separately: copy a visible nutrition label (`basis: "label"`), otherwise look the product up with OpenAI's `web_search` tool (`basis: "web"`, `source_url` kept only if it's on a site the search returned), assume the whole pack for single-serve packs. Home-cooked food never searches. `OPENAI_WEB_SEARCH=off` disables search.
+7. **Recent and favourite meals** (2026-11-11) — log a meal again without an AI call. Recent meals are the distinct titles among the latest 100 entries, each with the amounts it was last logged with; favourites live in `users/{uid}/favourites` (one per name). Today shows a *Quick add* row (favourites first, then frequent meals, led by ones usually had at this time of day): **+** logs it straight away with Undo, tapping it opens the review screen with ½ / ¾ portions. *See all* opens *Your meals* (search, star/unstar). The type-a-meal screen suggests matching past meals. The review screen's star saves the meal as shown without logging it.
