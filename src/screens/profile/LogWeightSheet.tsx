@@ -15,6 +15,7 @@ function LogWeightForm({ onDone }: { onDone: () => void }) {
   const [value, setValue] = useState(String(profile.weightKg));
   const kg = parseNumber(value);
   const valid = kg != null && kg >= 30 && kg <= 300;
+  const own = profile.customCalories != null;
 
   function save(e: FormEvent) {
     e.preventDefault();
@@ -23,7 +24,7 @@ function LogWeightForm({ onDone }: { onDone: () => void }) {
     backend.data.logWeight(user.uid, todayKey(), rounded).catch(() => toast({ message: 'Couldn’t save your weight.' }));
     haptic([8, 40, 8]);
     const target = computePlan({ ...profile, weightKg: rounded }).calories;
-    toast({ message: `Weight saved · target ${fmtInt(target)} kcal` });
+    toast({ message: own ? 'Weight saved' : `Weight saved · target ${fmtInt(target)} kcal` });
     onDone();
   }
 
@@ -35,7 +36,7 @@ function LogWeightForm({ onDone }: { onDone: () => void }) {
         value={value}
         onChange={setValue}
         error={value !== '' && !valid ? 'Enter a weight between 30 and 300 kg' : null}
-        hint="Your daily target updates automatically."
+        hint={own ? 'Your own daily target stays as it is.' : 'Your daily target updates automatically.'}
       />
       <Button type="submit" disabled={!valid}>
         Save

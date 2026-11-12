@@ -16,6 +16,7 @@ import type { Profile } from '../../lib/types';
 import { Onboarding } from '../onboarding/Onboarding';
 import { KitchenSheet } from './KitchenSheet';
 import { LogWeightSheet } from './LogWeightSheet';
+import { TargetSheet } from './TargetSheet';
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -28,12 +29,30 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-function Row({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-h-[52px] items-center justify-between gap-4 px-4 py-3">
       <span className="text-[16px]">{label}</span>
-      <span className={cx('text-right text-[16px] tabular-nums', strong ? 'font-semibold text-ink' : 'text-ink-2')}>{value}</span>
+      <span className="text-right text-[16px] tabular-nums text-ink-2">{value}</span>
     </div>
+  );
+}
+
+/** A value row that opens an editor. */
+function EditRow({ label, detail, value, onClick }: { label: string; detail: string; value: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-[52px] w-full items-center gap-3 px-4 py-2.5 text-left transition-colors active:bg-fill-2"
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-[16px]">{label}</span>
+        <span className="block text-[13px] text-ink-2">{detail}</span>
+      </span>
+      <span className="text-right text-[16px] font-semibold tabular-nums text-ink">{value}</span>
+      <ChevronRight size={18} className="-mr-1 shrink-0 text-ink-3" />
+    </button>
   );
 }
 
@@ -61,17 +80,23 @@ export function ProfileScreen({ onClose }: { onClose: () => void }) {
   const [editing, setEditing] = useState(false);
   const [weightOpen, setWeightOpen] = useState(false);
   const [kitchenOpen, setKitchenOpen] = useState(false);
+  const [targetOpen, setTargetOpen] = useState(false);
   const plan = useMemo(() => computePlan(profile), [profile]);
   const pace = PACE_OPTIONS.find((o) => o.value === profile.pace)!;
 
   function saveEdit(edited: Profile) {
-    // The plan editor doesn't know about the kitchen settings; keep them.
-    const next = profile.kitchen ? { ...edited, kitchen: profile.kitchen } : edited;
+    // The plan editor doesn't know about the kitchen settings or a target of their own; keep them.
+    const next: Profile = { ...edited };
+    if (profile.kitchen) next.kitchen = profile.kitchen;
+    if (profile.customCalories != null) next.customCalories = profile.customCalories;
     backend.data
       .saveProfile(user, next, { today: todayKey(), logWeight: next.weightKg !== profile.weightKg })
       .catch(() => toast({ message: 'Couldn’t save your plan. Try again.' }));
     setEditing(false);
-    toast({ message: `Plan updated · ${fmtInt(computePlan(next).calories)} kcal a day` });
+    const kcal = fmtInt(computePlan(next).calories);
+    toast({
+      message: next.customCalories != null ? `Plan updated · your own ${kcal} kcal target still applies` : `Plan updated · ${kcal} kcal a day`,
+    });
   }
 
   return (
@@ -95,7 +120,12 @@ export function ProfileScreen({ onClose }: { onClose: () => void }) {
         </div>
 
         <Group title="Your plan">
-          <Row label="Daily target" value={`${fmtInt(plan.calories)} kcal`} strong />
+          <EditRow
+            label="Daily target"
+            detail={plan.isCustom ? `Set by you · calculated ${fmtInt(plan.calculatedCalories)}` : 'Calculated for you'}
+            value={`${fmtInt(plan.calories)} kcal`}
+            onClick={() => setTargetOpen(true)}
+          />
           <Row label="Maintenance" value={`${fmtInt(plan.maintenance)} kcal`} />
           <Row label="Goal" value={pace.kgPerWeek > 0 ? `Lose ${pace.detail}` : 'Maintain weight'} />
           <Row label="Activity" value={plan.activityLabel} />
@@ -136,6 +166,7 @@ export function ProfileScreen({ onClose }: { onClose: () => void }) {
 
       <LogWeightSheet open={weightOpen} onClose={() => setWeightOpen(false)} />
       <KitchenSheet open={kitchenOpen} onClose={() => setKitchenOpen(false)} />
+      <TargetSheet open={targetOpen} onClose={() => setTargetOpen(false)} />
       <AnimatePresence>
         {editing && (
           <Overlay key="edit" from="bottom" onClose={() => setEditing(false)}>

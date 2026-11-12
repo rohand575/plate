@@ -67,7 +67,7 @@ describe('quickPicks', () => {
       entry('Dal rice', 500, 5, 'lunch'),
     ]);
     const favourites = [favourite('Poha', 10, 'breakfast'), favourite('Salad', 20, 'lunch')];
-    expect(quickPicks(favourites, recents, 'lunch').map((p) => p.title)).toEqual(['Salad', 'Poha', 'Dal rice', 'Sandwich', 'Biryani']);
+    expect(quickPicks(favourites, recents, 'lunch', 5).map((p) => p.title)).toEqual(['Salad', 'Poha', 'Dal rice', 'Sandwich', 'Biryani']);
     // Neither favourite is a dinner, so the one saved or eaten most recently leads.
     expect(quickPicks(favourites, recents, 'dinner', 3).map((p) => p.title)).toEqual(['Salad', 'Poha', 'Biryani']);
   });

@@ -59,7 +59,7 @@ export function matchMeals<T extends MealPreset>(meals: T[], search: string): T[
  * Meals offered for one-tap logging on Today: favourites first, then other recent meals,
  * each led by the ones last had at this time of day.
  */
-export function quickPicks(favourites: Favourite[], recents: RecentMeal[], meal: Meal, max = 12): MealPreset[] {
+export function quickPicks(favourites: Favourite[], recents: RecentMeal[], meal: Meal, max: number): MealPreset[] {
   const recent = new Map(recents.map((r) => [mealKey(r.title), r]));
   const usual = (p: MealPreset) => ((recent.get(mealKey(p.title))?.meal ?? p.meal) === meal ? 0 : 1);
   const lastUsed = (f: Favourite) => recent.get(mealKey(f.title))?.lastLoggedAt ?? f.savedAt;

@@ -74,6 +74,26 @@ describe('computePlan', () => {
     expect(days).toBeLessThan(145);
   });
 
+  it('uses a target of their own, with fat and carbs following it', () => {
+    const plan = computePlan({ ...base, goalWeightKg: 80, customCalories: 1960 }, NOW);
+    expect(plan.isCustom).toBe(true);
+    expect(plan.calories).toBe(1960);
+    expect(plan.calculatedCalories).toBe(1710);
+    expect(plan.deficit).toBe(300);
+    expect(plan.protein).toBe(144);
+    expect(plan.fat).toBe(Math.round((1960 * 0.27) / 9));
+    expect(plan.calories - (plan.protein * 4 + plan.fat * 9 + plan.carbs * 4)).toBeLessThan(10);
+    expect(plan.weeklyChangeKg).toBeCloseTo(0.27, 2);
+    expect(plan.limitNote).toBeNull();
+    expect(computePlan({ ...base, customCalories: null }, NOW)).toMatchObject({ calories: 1710, isCustom: false });
+  });
+
+  it('warns when a target of their own is below the safe minimum', () => {
+    const plan = computePlan({ ...base, customCalories: 1300 }, NOW);
+    expect(plan.calories).toBe(1300);
+    expect(plan.limitNote).toMatch(/safe minimum of 1,500/);
+  });
+
   it('caps protein for very high body weight', () => {
     const plan = computePlan({ ...base, weightKg: 150 }, NOW);
     expect(plan.protein).toBe(Math.round(1.6 * 30 * 1.8 * 1.8));

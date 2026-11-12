@@ -35,6 +35,8 @@ export interface Profile {
   walking: Walking;
   pace: Pace;
   kitchen?: Kitchen;
+  /** A daily calorie target the person set themselves; replaces the calculated one. Null clears it. */
+  customCalories?: number | null;
 }
 
 export interface AppUser {

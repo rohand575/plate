@@ -40,6 +40,8 @@ export const PACE_OPTIONS: { value: Pace; label: string; detail: string; kgPerWe
   { value: 'fast', label: 'Lose faster', detail: '0.75 kg a week', kgPerWeek: 0.75 },
 ];
 export const RECOMMENDED_PACE: Pace = 'standard';
+/** Allowed range for a daily target the person sets themselves. */
+export const CUSTOM_TARGET_RANGE = { min: 1000, max: 6000 };
 
 // Mifflin-St Jeor sex constant; "unspecified" uses the midpoint.
 const SEX_CONSTANT: Record<Sex, number> = { male: 5, female: -161, unspecified: -78 };
@@ -76,8 +78,12 @@ export interface Plan {
   activityLabel: string;
   maintenance: number;
   deficit: number;
+  /** The daily target: the person's own when they set one, otherwise the calculated one. */
   calories: number;
-  /** Explains why the deficit is smaller than the chosen pace, if it is. */
+  /** The target worked out from the person's answers. */
+  calculatedCalories: number;
+  isCustom: boolean;
+  /** Explains why the deficit is smaller than the chosen pace, or warns that a target of their own is very low. */
   limitNote: string | null;
   protein: number;
   carbs: number;
@@ -116,7 +122,14 @@ export function computePlan(p: Profile, now: Date = new Date()): Plan {
   }
 
   const maintenance = round10(rawMaintenance);
-  const calories = round10(rawMaintenance - deficit);
+  const calculatedCalories = round10(rawMaintenance - deficit);
+  const isCustom = p.customCalories != null;
+  const calories = p.customCalories ?? calculatedCalories;
+  if (isCustom) {
+    deficit = rawMaintenance - calories;
+    limitNote =
+      calories < CALORIE_FLOOR[p.sex] ? `Below the usual safe minimum of ${fmtInt(CALORIE_FLOOR[p.sex])} kcal a day.` : null;
+  }
 
   // Protein scales with body weight, capped at the weight for BMI 30 so it stays realistic.
   const proteinWeight = Math.min(p.weightKg, 30 * heightM * heightM);
@@ -140,6 +153,8 @@ export function computePlan(p: Profile, now: Date = new Date()): Plan {
     maintenance,
     deficit: maintenance - calories,
     calories,
+    calculatedCalories,
+    isCustom,
     limitNote,
     protein,
     carbs,

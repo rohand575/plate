@@ -4,7 +4,7 @@ A minimal, installable calorie tracker. Sign in with Google, answer a few questi
 
 - **Check before you eat.** Snap a meal with the in-app camera and the review screen shows what it does to today's target ("270 kcal over"), which share of it fits (½ / ¾), and one lighter swap. Then add it, skip it, or **Decide later** — saved checks wait on Today for 12 hours and log without another AI call.
 - **Packaged food uses real label values.** Photograph the nutrition label and Plate copies it; photograph the front (or name the product) and the AI searches the web for that product's published values. The review screen says which ("Numbers from the nutrition label" / "Nutrition facts found online · site").
-- **Log it again without the AI.** Today's *Quick add* row shows your favourite and frequent meals: tap **+** to add one as it was last logged, or tap the card to change the amounts first. *See all* lists every favourite and recent meal with search. Typing a meal you've had before suggests it too. Star a meal on the review screen to save it as a favourite without logging it. None of this uses an AI log.
+- **Log it again without the AI.** Today's *Quick add* (closed until you tap it) holds five of your favourite and frequent meals: tap **+** to add one as it was last logged, or tap the card to change the amounts first. *See all* lists every favourite and recent meal with search. Typing a meal you've had before suggests it too. Star a meal on the review screen to save it as a favourite without logging it. None of this uses an AI log.
 - **Edit anything you logged** — tap an entry to change amounts, meal or day.
 - **Your kitchen** (Profile → Portions and cooking): roti and katori size, oil, ghee and milk. Every estimate uses it when a meal doesn't say.
 - **Home-screen shortcuts:** long-press the installed app's icon for *Snap a meal*, *Say what you ate* or *Type what you ate*.
@@ -146,6 +146,7 @@ Open https://plate.rohan-dhanawade.de in Chrome → **⋮ → Install app** (or 
   - Never more than 25% below maintenance.
   - Never below 1,500 kcal (male) or 1,200 kcal (female).
   - Under-18s get maintenance only.
+  - **Your own target** (Profile → Daily target) replaces the calculated one; fat and carbs follow it. Plate warns below the minimums above, and under-18s can't go below maintenance. Weigh-ins don't change it.
 - **Macros** — protein 1.6 g/kg (capped at the weight for BMI 30), fat 27% of calories, carbs the rest.
 
 ## Scripts
